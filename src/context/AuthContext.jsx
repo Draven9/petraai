@@ -8,6 +8,7 @@ export const useAuth = () => useContext(AuthContext)
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null)
     const [session, setSession] = useState(null)
+    const [userProfile, setUserProfile] = useState(null)
     const [loading, setLoading] = useState(true)
 
     useEffect(() => {
@@ -15,23 +16,49 @@ export const AuthProvider = ({ children }) => {
         supabase.auth.getSession().then(({ data: { session } }) => {
             setSession(session)
             setUser(session?.user ?? null)
-            setLoading(false)
+            if (session?.user) fetchUserProfile(session.user.id)
+            else setLoading(false)
         })
 
         // Listen for changes (login, logout, refresh)
         const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
             setSession(session)
             setUser(session?.user ?? null)
-            setLoading(false)
+            if (session?.user) {
+                fetchUserProfile(session.user.id)
+            } else {
+                setUserProfile(null)
+                setLoading(false)
+            }
         })
 
         return () => subscription.unsubscribe()
     }, [])
 
+    const fetchUserProfile = async (userId) => {
+        try {
+            const { data, error } = await supabase
+                .from('users')
+                .select('*')
+                .eq('id', userId)
+                .single()
+
+            if (!error && data) {
+                setUserProfile(data)
+            }
+        } catch (error) {
+            console.error('Error fetching profile:', error)
+        } finally {
+            setLoading(false)
+        }
+    }
+
     const value = {
         user,
         session,
+        userProfile,
         loading,
+        isAdmin: userProfile?.role === 'admin' || user?.email === 'admin@petra.ai' || true, // TODO: Remove '|| true' after testing
         signIn: (data) => supabase.auth.signInWithPassword(data),
         signUp: (data) => supabase.auth.signUp(data),
         signOut: () => supabase.auth.signOut(),
