@@ -11,23 +11,36 @@ export default function LoginPage() {
     const [password, setPassword] = useState('')
     const [error, setError] = useState('')
     const [loading, setLoading] = useState(false)
+    const [isSignUp, setIsSignUp] = useState(false)
 
-    const { signIn } = useAuth()
+    const { signIn, signUp } = useAuth()
     const navigate = useNavigate()
 
-    const handleLogin = async (e) => {
+    const handleAuth = async (e) => {
         e.preventDefault()
         setError('')
         setLoading(true)
 
-        const { error } = await signIn({ email, password })
-
-        if (error) {
-            setError(error.message)
+        try {
+            if (isSignUp) {
+                const { data, error } = await signUp({ email, password })
+                if (error) throw error
+                // Check if session was created immediately (depends on Supabase settings/confirm email)
+                if (data.session) {
+                    navigate('/')
+                } else {
+                    alert('Cadastro realizado! Verifique seu e-mail ou faça login.')
+                    setIsSignUp(false)
+                }
+            } else {
+                const { error } = await signIn({ email, password })
+                if (error) throw error
+                navigate('/')
+            }
+        } catch (err) {
+            setError(err.message)
+        } finally {
             setLoading(false)
-        } else {
-            // Redirect to dashboard on success
-            navigate('/')
         }
     }
 
@@ -37,11 +50,13 @@ export default function LoginPage() {
                 <CardHeader className="space-y-1">
                     <CardTitle className="text-2xl font-bold text-center text-[var(--primary-orange)]">PetraAI</CardTitle>
                     <CardDescription className="text-center">
-                        Insira seu e-mail e senha para acessar sua conta.
+                        {isSignUp
+                            ? "Crie sua conta para começar."
+                            : "Insira seu e-mail e senha para acessar."}
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <form onSubmit={handleLogin} className="space-y-4">
+                    <form onSubmit={handleAuth} className="space-y-4">
                         {error && (
                             <div className="flex items-center gap-2 rounded-md bg-red-50 p-3 text-sm text-red-600 dark:bg-red-900/10 dark:text-red-400">
                                 <AlertCircle className="h-4 w-4" />
@@ -71,13 +86,23 @@ export default function LoginPage() {
                         </div>
                         <Button className="w-full bg-[var(--primary-orange)] hover:bg-[var(--primary-orange)]/90" type="submit" disabled={loading}>
                             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            Entrar
+                            {isSignUp ? "Criar Conta" : "Entrar"}
                         </Button>
                     </form>
                 </CardContent>
                 <CardFooter className="flex justify-center flex-col gap-2">
                     <div className="text-sm text-muted-foreground text-center">
-                        Ainda não tem uma conta? <span className="text-[var(--primary-orange)] cursor-pointer hover:underline">Registre-se (Em breve)</span>
+                        {isSignUp ? "Já tem uma conta?" : "Ainda não tem uma conta?"}
+                        {" "}
+                        <span
+                            className="text-[var(--primary-orange)] cursor-pointer hover:underline font-semibold"
+                            onClick={() => {
+                                setIsSignUp(!isSignUp)
+                                setError('')
+                            }}
+                        >
+                            {isSignUp ? "Fazer Login" : "Registre-se"}
+                        </span>
                     </div>
                 </CardFooter>
             </Card>

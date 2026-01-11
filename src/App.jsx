@@ -3,6 +3,7 @@ import { AuthProvider } from '@/context/AuthContext'
 import ProtectedRoute from '@/components/auth/ProtectedRoute'
 import LoginPage from '@/pages/auth/LoginPage'
 import ShowcasePage from '@/pages/ShowcasePage'
+import MachinesPage from '@/pages/machines/MachinesPage'
 import Layout from '@/components/layout/Layout'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -49,6 +50,7 @@ function App() {
 
           <Route element={<ProtectedRoute />}>
             <Route element={<Layout><Dashboard /></Layout>} path="/" />
+            <Route element={<Layout><MachinesPage /></Layout>} path="/machines" />
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />

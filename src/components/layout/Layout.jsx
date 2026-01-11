@@ -11,9 +11,14 @@ const items = [
         icon: Home,
     },
     {
-        title: "Perfil",
-        url: "#",
-        icon: User,
+        title: "Início",
+        url: "/",
+        icon: Home,
+    },
+    {
+        title: "Minha Frota",
+        url: "/machines",
+        icon: Settings, // Using Settings icon temporarily or we can change to Activity/Truck if imported
     },
     {
         title: "Configurações",
