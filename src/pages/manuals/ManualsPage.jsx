@@ -17,14 +17,18 @@ export default function ManualsPage() {
     const [searchTerm, setSearchTerm] = useState('')
     const [isUploadOpen, setIsUploadOpen] = useState(false)
 
+    // Debounce search to avoid too many requests
     useEffect(() => {
-        loadManuals()
-    }, [])
+        const timer = setTimeout(() => {
+            loadManuals(searchTerm)
+        }, 500)
+        return () => clearTimeout(timer)
+    }, [searchTerm])
 
-    async function loadManuals() {
+    async function loadManuals(term = '') {
         setLoading(true)
         try {
-            const data = await manualsService.list()
+            const data = await manualsService.list(term)
             setManuals(data)
             setError(null)
         } catch (err) {
@@ -34,10 +38,8 @@ export default function ManualsPage() {
         }
     }
 
-    const filteredManuals = manuals.filter(manual =>
-        manual.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        manual.machine_type.toLowerCase().includes(searchTerm.toLowerCase())
-    )
+    // Filter local removed because we are doing server side
+    const filteredManuals = manuals
 
     if (loading && manuals.length === 0) return <Loading />
     if (error) return <Error message={error} />

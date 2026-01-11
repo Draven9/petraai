@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Upload, FileText, X, Loader2, CheckCircle } from 'lucide-react'
 import { manualsService } from '@/services/manualsService'
+import { extractTextFromPdf } from '@/utils/pdfUtils'
 
 // Componente Label Simples (se nao existir no shadcn ainda)
 function SimpleLabel({ children, className }) {
@@ -43,10 +44,20 @@ export function ManualUploadForm({ isOpen, onClose, onSuccess }) {
 
         setLoading(true)
         try {
-            // 1. Upload File
+            // 1. Extract Text (Client-Side)
+            let extractedText = ''
+            try {
+                extractedText = await extractTextFromPdf(file)
+                console.log('Texto extraído (preview):', extractedText.substring(0, 100) + '...')
+            } catch (err) {
+                console.warn('Não foi possível extrair texto:', err)
+                // Continue upload even if extraction fails, but warn user? For now just log.
+            }
+
+            // 2. Upload File
             const { publicUrl, fileName } = await manualsService.upload(file)
 
-            // 2. Create Record
+            // 3. Create Record
             await manualsService.create({
                 title,
                 machine_type: machineType,
@@ -54,6 +65,7 @@ export function ManualUploadForm({ isOpen, onClose, onSuccess }) {
                 model,
                 file_url: publicUrl,
                 file_name: fileName,
+                content_extracted: extractedText,
                 uploaded_by_email: 'admin@petra.ai' // TODO: Pegar do context
             })
 
@@ -144,7 +156,7 @@ export function ManualUploadForm({ isOpen, onClose, onSuccess }) {
                         <Button type="button" variant="ghost" onClick={handleClose}>Cancelar</Button>
                         <Button type="submit" className="bg-[var(--primary-orange)]" disabled={!file || loading}>
                             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            Enviar Arquivo
+                            {loading ? 'Processando...' : 'Enviar Arquivo'}
                         </Button>
                     </DialogFooter>
                 </form>

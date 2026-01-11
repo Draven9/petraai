@@ -1,11 +1,21 @@
 import { supabase } from '@/lib/supabase'
 
 export const manualsService = {
-    list: async () => {
-        const { data, error } = await supabase
+    list: async (searchTerm = '') => {
+        let query = supabase
             .from('technical_manuals')
             .select('*')
             .order('title')
+
+        if (searchTerm) {
+            // Busca no titulo OU no conteudo extraido
+            // Nota: full-text search seria ideal com 'websearch_to_tsquery' se tivessimos criado indice FTS
+            // Como criamos um indice gin(to_tsvector) na migration 002, podemos usar 'textSearch'
+            const term = `%${searchTerm}%`
+            query = query.or(`title.ilike.${term},machine_type.ilike.${term},content_extracted.ilike.${term}`)
+        }
+
+        const { data, error } = await query
         if (error) throw error
         return data
     },
