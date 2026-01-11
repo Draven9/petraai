@@ -25,5 +25,23 @@ export const manualsService = {
             .delete()
             .eq('id', id)
         if (error) throw error
+    },
+
+    upload: async (file) => {
+        const fileExt = file.name.split('.').pop()
+        const fileName = `${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`
+        const filePath = `${fileName}`
+
+        const { error: uploadError } = await supabase.storage
+            .from('manuals')
+            .upload(filePath, file)
+
+        if (uploadError) throw uploadError
+
+        const { data: { publicUrl } } = supabase.storage
+            .from('manuals')
+            .getPublicUrl(filePath)
+
+        return { publicUrl, fileName: file.name }
     }
 }

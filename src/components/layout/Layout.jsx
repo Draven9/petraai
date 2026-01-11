@@ -18,7 +18,12 @@ const items = [
     {
         title: "Minha Frota",
         url: "/machines",
-        icon: Settings, // Using Settings icon temporarily or we can change to Activity/Truck if imported
+        icon: Settings,
+    },
+    {
+        title: "Manuais",
+        url: "/manuals",
+        icon: Home, // TODO: Change icon
     },
     {
         title: "Configurações",
