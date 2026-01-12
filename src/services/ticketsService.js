@@ -1,11 +1,30 @@
 import { supabase } from '@/lib/supabase'
 
 export const ticketsService = {
-    list: async () => {
-        const { data, error } = await supabase
+    // Listar chamados com dados da máquina populados
+    list: async (filters = {}) => {
+        let query = supabase
             .from('support_tickets')
-            .select('*, machines(name, model)') // Join básico para trazer nome da máquina
+            .select(`
+                *,
+                machines (
+                    id,
+                    name,
+                    brand,
+                    model,
+                    machine_type
+                )
+            `)
             .order('created_date', { ascending: false })
+
+        if (filters.status) {
+            query = query.eq('status', filters.status)
+        }
+
+        // Se houver filtro de busca (termo), seria mais complexo com join, 
+        // por enquanto mantemos filtro simples por status
+
+        const { data, error } = await query
         if (error) throw error
         return data
     },
@@ -13,19 +32,37 @@ export const ticketsService = {
     create: async (ticketData) => {
         const { data, error } = await supabase
             .from('support_tickets')
-            .insert([ticketData])
+            .insert(ticketData)
             .select()
+            .single()
+
         if (error) throw error
-        return data[0]
+        return data
     },
 
     updateStatus: async (id, status) => {
         const { data, error } = await supabase
             .from('support_tickets')
-            .update({ status, updated_date: new Date() })
+            .update({ status })
             .eq('id', id)
             .select()
+            .single()
+
         if (error) throw error
-        return data[0]
+        return data
+    },
+
+    getById: async (id) => {
+        const { data, error } = await supabase
+            .from('support_tickets')
+            .select(`
+                *,
+                machines (*)
+            `)
+            .eq('id', id)
+            .single()
+
+        if (error) throw error
+        return data
     }
 }
