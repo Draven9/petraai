@@ -8,7 +8,10 @@ function Label({ children, htmlFor }) {
     return <label htmlFor={htmlFor} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 block mb-2">{children}</label>
 }
 
+import { useCompany } from '@/context/CompanyContext'
+
 export function CompanyProfile() {
+    const { refreshCompany } = useCompany()
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
     const [logoFile, setLogoFile] = useState(null)
@@ -75,6 +78,7 @@ export function CompanyProfile() {
             })
 
             alert('Dados da empresa atualizados!')
+            await refreshCompany() // Update global context immediately
             // Ideal: Atualizar contexto global de Theme/Company se existir
         } catch (error) {
             console.error(error)
