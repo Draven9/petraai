@@ -2,9 +2,10 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from '@/context/AuthContext'
 import ProtectedRoute from '@/components/auth/ProtectedRoute'
 import LoginPage from '@/pages/auth/LoginPage'
-import ShowcasePage from '@/pages/ShowcasePage'
+import ShowcasePage from './pages/ShowcasePage'
 import MachinesPage from '@/pages/machines/MachinesPage'
-import ManualsPage from '@/pages/manuals/ManualsPage'
+import ManualsPage from './pages/manuals/ManualsPage'
+import SettingsPage from './pages/settings/SettingsPage'
 import Layout from '@/components/layout/Layout'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -53,6 +54,7 @@ function App() {
             <Route element={<Layout><Dashboard /></Layout>} path="/" />
             <Route element={<Layout><MachinesPage /></Layout>} path="/machines" />
             <Route element={<Layout><ManualsPage /></Layout>} path="/manuals" />
+            <Route element={<Layout><SettingsPage /></Layout>} path="/settings" />
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />

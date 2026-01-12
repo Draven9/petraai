@@ -1,6 +1,7 @@
+
 import { useState } from "react"
 import { SidebarProvider, Sidebar, SidebarContent, SidebarHeader, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarTrigger, SidebarRail } from "@/components/ui/sidebar"
-import { Home, Settings, User, LogOut } from "lucide-react"
+import { Home, Settings, User, LogOut, Book } from "lucide-react"
 import { useAuth } from "@/context/AuthContext"
 
 // Simple Nav Items for Phase 1
@@ -23,11 +24,11 @@ const items = [
     {
         title: "Manuais",
         url: "/manuals",
-        icon: Home, // TODO: Change icon
+        icon: Book,
     },
     {
         title: "Configurações",
-        url: "#",
+        url: "/settings",
         icon: Settings,
     },
 ]
