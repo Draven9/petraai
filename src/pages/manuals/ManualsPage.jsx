@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useMemo } from 'react'
 import { manualsService } from '@/services/manualsService'
 import { ManualCard } from '@/components/manuals/ManualCard'
@@ -6,7 +7,7 @@ import { PdfViewerModal } from '@/components/manuals/PdfViewerModal'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Search, UploadCloud, FilterX } from 'lucide-react'
+import { Search, UploadCloud, Filter, SlidersHorizontal, FileText, X } from 'lucide-react'
 import Loading from '@/components/common/Loading'
 import Error from '@/components/common/Error'
 import { useAuth } from '@/context/AuthContext'
@@ -21,6 +22,7 @@ export default function ManualsPage() {
     const [searchTerm, setSearchTerm] = useState('')
     const [filterType, setFilterType] = useState('all')
     const [filterBrand, setFilterBrand] = useState('all')
+    const [showFilters, setShowFilters] = useState(false)
 
     // Modals
     const [isUploadOpen, setIsUploadOpen] = useState(false)
@@ -77,64 +79,103 @@ export default function ManualsPage() {
     if (error) return <Error message={error} />
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-8 bg-[var(--bg-light)] min-h-screen">
+            {/* Header */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <h1 className="text-3xl font-bold tracking-tight text-[var(--primary-orange)]">Manuais Técnicos</h1>
+                <div>
+                    <h1 className="text-3xl font-bold text-gray-900">Manuais Técnicos</h1>
+                    <p className="text-gray-500 mt-1">Biblioteca de manuais e documentação</p>
+                </div>
                 {isAdmin && (
-                    <Button onClick={() => setIsUploadOpen(true)} className="bg-[var(--primary-orange)] hover:bg-[var(--primary-orange)]/90 gap-2">
+                    <Button onClick={() => setIsUploadOpen(true)} className="bg-[var(--primary-orange)] hover:bg-[var(--primary-orange)]/90 gap-2 shadow-sm">
                         <UploadCloud className="h-4 w-4" />
                         Adicionar Manual
                     </Button>
                 )}
             </div>
 
-            <div className="flex flex-col md:flex-row gap-4">
-                <div className="relative flex-1">
-                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input
-                        type="search"
-                        placeholder="Buscar por título ou conteúdo..."
-                        className="pl-8"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                    />
+            {/* Search & Filter Container */}
+            <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100 space-y-4">
+                <div className="text-sm font-medium text-gray-500">Buscar em Manuais</div>
+                <div className="flex flex-col lg:flex-row gap-4">
+                    <div className="relative flex-grow">
+                        <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+                        <Input
+                            type="search"
+                            placeholder="Título, descrição, conteúdo, tags..."
+                            className="pl-9 bg-gray-50 border-gray-200"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                        />
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                        <Button
+                            variant="outline"
+                            className="gap-2 border-dashed border-gray-300 text-gray-600 hover:text-[var(--primary-orange)] hover:border-[var(--primary-orange)]"
+                            onClick={() => setShowFilters(!showFilters)}
+                        >
+                            <SlidersHorizontal className="h-4 w-4" />
+                            Filtros Mais
+                        </Button>
+
+                        <Button className="bg-[var(--primary-orange)] hover:bg-[var(--primary-orange)]/90 px-6">
+                            Aplicar
+                        </Button>
+
+                        {(filterType !== 'all' || filterBrand !== 'all' || searchTerm) && (
+                            <Button variant="ghost" onClick={clearFilters} className="gap-2 text-gray-500 hover:text-red-500">
+                                <X className="h-4 w-4" />
+                                Limpar
+                            </Button>
+                        )}
+                    </div>
                 </div>
 
-                <Select value={filterType} onValueChange={setFilterType}>
-                    <SelectTrigger className="w-full md:w-[200px]">
-                        <SelectValue placeholder="Tipo" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">Todos os Tipos</SelectItem>
-                        {typeOptions.map(type => (
-                            <SelectItem key={type} value={type}>{type}</SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                {/* Collapsible Filters */}
+                {showFilters && (
+                    <div className="pt-4 border-t grid grid-cols-1 md:grid-cols-2 gap-4 animate-in slide-in-from-top-2">
+                        <Select value={filterType} onValueChange={setFilterType}>
+                            <SelectTrigger className="w-full bg-white">
+                                <SelectValue placeholder="Filtrar por Tipo" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">Todos os Tipos</SelectItem>
+                                {typeOptions.map(type => (
+                                    <SelectItem key={type} value={type}>{type}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
 
-                <Select value={filterBrand} onValueChange={setFilterBrand}>
-                    <SelectTrigger className="w-full md:w-[200px]">
-                        <SelectValue placeholder="Marca" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">Todas as Marcas</SelectItem>
-                        {brandOptions.map(brand => (
-                            <SelectItem key={brand} value={brand}>{brand}</SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-
-                {(filterType !== 'all' || filterBrand !== 'all' || searchTerm) && (
-                    <Button variant="ghost" onClick={clearFilters} className="px-3" title="Limpar Filtros">
-                        <FilterX className="h-4 w-4" />
-                    </Button>
+                        <Select value={filterBrand} onValueChange={setFilterBrand}>
+                            <SelectTrigger className="w-full bg-white">
+                                <SelectValue placeholder="Filtrar por Marca" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">Todas as Marcas</SelectItem>
+                                {brandOptions.map(brand => (
+                                    <SelectItem key={brand} value={brand}>{brand}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
                 )}
             </div>
 
+            {/* Content or Empty State */}
             {filteredManuals.length === 0 ? (
-                <div className="text-center py-20 bg-white rounded-lg border border-dashed">
-                    <div className="text-gray-500 mb-2">Nenhum manual encontrado.</div>
-                    {isAdmin && <div className="text-sm text-[var(--primary-orange)]">Tente ajustar os filtros ou faça um novo upload.</div>}
+                <div className="flex flex-col items-center justify-center py-24 bg-white rounded-lg border border-dashed border-gray-200">
+                    <div className="h-16 w-16 bg-gray-50 rounded-2xl flex items-center justify-center mb-4">
+                        <FileText className="h-8 w-8 text-gray-400" />
+                    </div>
+                    <h3 className="text-lg font-bold text-gray-900">Nenhum manual cadastrado</h3>
+                    <p className="text-gray-500 mt-1 mb-8">Adicione o primeiro manual para começar.</p>
+                    {isAdmin && (
+                        <Button onClick={() => setIsUploadOpen(true)} className="bg-[var(--primary-orange)] hover:bg-[var(--primary-orange)]/90">
+                            <UploadCloud className="mr-2 h-4 w-4" />
+                            Adicionar Primeiro Manual
+                        </Button>
+                    )}
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
