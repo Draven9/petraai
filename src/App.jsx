@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from '@/context/AuthContext'
+import { ToastProvider } from '@/context/ToastContext'
 import ProtectedRoute from '@/components/auth/ProtectedRoute'
 import LoginPage from '@/pages/auth/LoginPage'
 import ShowcasePage from './pages/ShowcasePage'
@@ -49,22 +50,24 @@ function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <Routes>
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/showcase" element={<ShowcasePage />} />
+        <ToastProvider>
+          <Routes>
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/showcase" element={<ShowcasePage />} />
 
-          <Route element={<ProtectedRoute />}>
-            <Route element={<Layout><Dashboard /></Layout>} path="/" />
-            <Route element={<Layout><MachinesPage /></Layout>} path="/machines" />
-            <Route element={<Layout><TicketsPage /></Layout>} path="/tickets" />
-            <Route element={<Layout><ManualsPage /></Layout>} path="/manuals" />
-            <Route element={<Layout><ChatSupport /></Layout>} path="/chat" />
-            <Route element={<Layout><DocumentationPage /></Layout>} path="/documentation" />
-            <Route element={<Layout><SettingsPage /></Layout>} path="/settings" />
-          </Route>
+            <Route element={<ProtectedRoute />}>
+              <Route element={<Layout><Dashboard /></Layout>} path="/" />
+              <Route element={<Layout><MachinesPage /></Layout>} path="/machines" />
+              <Route element={<Layout><TicketsPage /></Layout>} path="/tickets" />
+              <Route element={<Layout><ManualsPage /></Layout>} path="/manuals" />
+              <Route element={<Layout><ChatSupport /></Layout>} path="/chat" />
+              <Route element={<Layout><DocumentationPage /></Layout>} path="/documentation" />
+              <Route element={<Layout><SettingsPage /></Layout>} path="/settings" />
+            </Route>
 
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </ToastProvider>
       </AuthProvider>
     </BrowserRouter>
   )

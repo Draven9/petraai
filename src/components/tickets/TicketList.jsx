@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { ticketsService } from '@/services/ticketsService'
+import { useToast } from '@/context/ToastContext'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
@@ -8,6 +9,7 @@ import { Loader2, AlertCircle, Clock, CheckCircle2, Search, Download, Eye } from
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { TicketDetailsModal } from './TicketDetailsModal'
+import { Skeleton } from "@/components/ui/skeleton"
 
 const STATUS_MAP = {
     'aberto': { label: 'Aberto', color: 'bg-red-100 text-red-800 border-red-200', icon: AlertCircle },
@@ -23,6 +25,7 @@ const URGENCY_MAP = {
 }
 
 export function TicketList({ refreshTrigger }) {
+    const { toast } = useToast()
     const [tickets, setTickets] = useState([])
     const [filteredTickets, setFilteredTickets] = useState([])
     const [loading, setLoading] = useState(true)
@@ -81,9 +84,10 @@ export function TicketList({ refreshTrigger }) {
         try {
             await ticketsService.updateStatus(id, newStatus)
             loadTickets() // Refresh list from DB to be safe
+            toast.success("Status atualizado", "O chamado foi atualizado com sucesso.")
         } catch (error) {
             console.error('Error updating status', error)
-            alert('Erro ao atualizar status')
+            toast.error("Erro ao atualizar", "Não foi possível mudar o status do chamado.")
         }
     }
 
@@ -119,7 +123,23 @@ export function TicketList({ refreshTrigger }) {
         document.body.removeChild(link)
     }
 
-    if (loading && tickets.length === 0) return <div className="p-8 flex justify-center"><Loader2 className="animate-spin text-gray-400" /></div>
+    if (loading && tickets.length === 0) return (
+        <div className="space-y-4">
+            {[1, 2, 3].map(i => (
+                <div key={i} className="flex flex-col md:flex-row gap-4 justify-between p-4 border rounded-lg">
+                    <div className="space-y-2 flex-1">
+                        <div className="flex gap-2">
+                            <Skeleton className="h-5 w-16" />
+                            <Skeleton className="h-5 w-24" />
+                        </div>
+                        <Skeleton className="h-6 w-3/4" />
+                        <Skeleton className="h-4 w-1/2" />
+                    </div>
+                    <Skeleton className="h-10 w-40" />
+                </div>
+            ))}
+        </div>
+    )
 
     return (
         <div className="space-y-4">
