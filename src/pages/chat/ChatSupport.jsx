@@ -14,6 +14,14 @@ import {
 import { aiService } from '@/services/aiService'
 
 export function ChatSupport() {
+    // Header for when NO machine is selected (MachineSelector view)
+    const Header = () => (
+        <div className="mb-8">
+            <h1 className="text-2xl font-bold text-gray-900">Chat de Suporte Técnico</h1>
+            <p className="text-gray-500">IA especializada em máquinas agrícolas</p>
+        </div>
+    )
+
     const [selectedMachine, setSelectedMachine] = useState(null)
     const [messages, setMessages] = useState([]) // [{ role: 'user'|'assistant', content: string|json }]
     const [inputText, setInputText] = useState('')
@@ -81,7 +89,12 @@ export function ChatSupport() {
     }
 
     if (!selectedMachine) {
-        return <MachineSelector onSelect={handleMachineSelect} />
+        return (
+            <div className="max-w-7xl mx-auto p-6 md:p-8">
+                <Header />
+                <MachineSelector onSelect={handleMachineSelect} />
+            </div>
+        )
     }
 
     return (
