@@ -1,6 +1,8 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Clock, MapPin, Activity } from "lucide-react"
+import { LazyLoadImage } from 'react-lazy-load-image-component';
+import 'react-lazy-load-image-component/src/effects/blur.css';
 
 export function MachineCard({ machine }) {
     const getStatusColor = (status) => {
@@ -13,7 +15,18 @@ export function MachineCard({ machine }) {
     }
 
     return (
-        <Card className="hover:shadow-md transition-shadow cursor-pointer">
+        <Card className="hover:shadow-md transition-shadow cursor-pointer overflow-hidden">
+            <div className="h-32 w-full bg-gray-100 relative">
+                <LazyLoadImage
+                    alt={machine.name}
+                    height="100%"
+                    src={machine.image_url || "/placeholder-machine.jpg"} // Fallback image needed
+                    width="100%"
+                    effect="blur"
+                    className="object-cover w-full h-full"
+                    placeholderSrc="/placeholder-machine-small.jpg"
+                />
+            </div>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">
                     {machine.model}
