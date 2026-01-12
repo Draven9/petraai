@@ -1,56 +1,73 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Clock, MapPin, Activity } from "lucide-react"
-import { LazyLoadImage } from 'react-lazy-load-image-component';
-import 'react-lazy-load-image-component/src/effects/blur.css';
+import { Clock, MapPin, Calendar, Wrench, Pencil } from "lucide-react"
+import { Button } from "@/components/ui/button"
 
 export function MachineCard({ machine }) {
     const getStatusColor = (status) => {
         switch (status?.toLowerCase()) {
-            case 'operacional': return 'bg-green-500 hover:bg-green-600'
-            case 'manutencao': return 'bg-yellow-500 hover:bg-yellow-600'
-            case 'parada': return 'bg-red-500 hover:bg-red-600'
-            default: return 'bg-gray-500'
+            case 'operacional': return 'bg-green-100 text-green-700 hover:bg-green-200'
+            case 'manutencao': return 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'
+            case 'parada': return 'bg-red-100 text-red-700 hover:bg-red-200'
+            default: return 'bg-gray-100 text-gray-700'
         }
     }
 
     return (
-        <Card className="hover:shadow-md transition-shadow cursor-pointer overflow-hidden">
-            <div className="h-32 w-full bg-gray-100 relative">
-                <LazyLoadImage
-                    alt={machine.name}
-                    height="100%"
-                    src={machine.image_url || "/placeholder-machine.jpg"} // Fallback image needed
-                    width="100%"
-                    effect="blur"
-                    className="object-cover w-full h-full"
-                    placeholderSrc="/placeholder-machine-small.jpg"
-                />
-            </div>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                    {machine.model}
-                </CardTitle>
-                <Badge className={getStatusColor(machine.status)}>
-                    {machine.status}
-                </Badge>
-            </CardHeader>
-            <CardContent>
-                <div className="text-2xl font-bold">{machine.name}</div>
-                <div className="flex flex-col gap-2 mt-4 text-xs text-muted-foreground">
-                    <div className="flex items-center gap-1">
-                        <Activity className="h-3 w-3" />
-                        {machine.brand}
+        <Card className="hover:shadow-md transition-shadow cursor-pointer border-0 shadow-sm overflow-hidden h-full">
+            <CardContent className="p-6">
+
+                {/* Header: Icon, Titles, Edit Button */}
+                <div className="flex justify-between items-start mb-4">
+                    <div className="flex gap-4">
+                        <div className="h-12 w-12 rounded-lg bg-orange-100 flex items-center justify-center shrink-0">
+                            <Wrench className="h-6 w-6 text-[var(--primary-orange)]" />
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-bold text-gray-900 leading-tight">{machine.name}</h3>
+                            <p className="text-sm text-gray-500">{machine.brand} {machine.model}</p>
+                        </div>
                     </div>
-                    <div className="flex items-center gap-1">
-                        <Clock className="h-3 w-3" />
-                        {machine.hours_worked}h trabalhadas
+                    {/* Placeholder for optional Edit Action passed from parent or just visual for now */}
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400 hover:text-gray-600">
+                        <Pencil className="h-4 w-4" />
+                    </Button>
+                </div>
+
+                {/* Badges Row */}
+                <div className="flex flex-wrap gap-2 mb-4">
+                    <Badge variant="secondary" className="bg-blue-50 text-blue-700 hover:bg-blue-100 font-normal">
+                        {machine.type?.toLowerCase() || 'trator'}
+                    </Badge>
+                    <Badge variant="secondary" className={`font-normal ${getStatusColor(machine.status)}`}>
+                        {machine.status}
+                    </Badge>
+                    <Badge variant="outline" className="text-gray-600 border-gray-200 font-normal">
+                        {new Date(machine.created_at).getFullYear() || '2020'}
+                    </Badge>
+                </div>
+
+                {/* Serial Number */}
+                <div className="text-xs text-gray-500 mb-4 font-mono">
+                    Série: {machine.serial_number || 'N/A'}
+                </div>
+
+                {/* Info List */}
+                <div className="space-y-2 text-sm text-gray-500">
+                    <div className="flex items-center gap-2">
+                        <MapPin className="h-4 w-4 text-gray-400" />
+                        <span>{machine.location || 'Sem localização'}</span>
                     </div>
-                    <div className="flex items-center gap-1">
-                        <MapPin className="h-3 w-3" />
-                        {machine.location || 'Sem localização'}
+                    <div className="flex items-center gap-2">
+                        <Clock className="h-4 w-4 text-gray-400" />
+                        <span>{machine.hours_worked || 0} horas</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <Calendar className="h-4 w-4 text-gray-400" />
+                        <span>Última manutenção: {machine.last_maintenance ? new Date(machine.last_maintenance).toLocaleDateString() : 'N/A'}</span>
                     </div>
                 </div>
+
             </CardContent>
         </Card>
     )

@@ -77,36 +77,45 @@ export default function MachinesPage() {
     if (error) return <Error message={error} />
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-8 bg-[var(--bg-light)] min-h-screen">
+            {/* Header */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <h1 className="text-3xl font-bold tracking-tight text-[var(--primary-orange)]">Minha Frota</h1>
+                <div>
+                    <h1 className="text-3xl font-bold text-gray-900">Máquinas</h1>
+                    <p className="text-gray-500 mt-1">Gerencie seu parque de máquinas agrícolas</p>
+                </div>
                 {isAdmin && (
-                    <Button onClick={handleCreate} className="bg-[var(--primary-orange)] hover:bg-[var(--primary-orange)]/90">
+                    <Button onClick={handleCreate} className="bg-[var(--primary-orange)] hover:bg-[var(--primary-orange)]/90 shadow-sm">
                         <Plus className="mr-2 h-4 w-4" />
                         Nova Máquina
                     </Button>
                 )}
             </div>
 
+            {/* Stats */}
             <MachineStats stats={stats} />
 
-            <div className="relative">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                    type="search"
-                    placeholder="Buscar por nome ou modelo..."
-                    className="pl-8 md:w-[300px]"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                />
+            {/* Search Bar Container */}
+            <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
+                <div className="relative">
+                    <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                    <Input
+                        type="search"
+                        placeholder="Buscar por nome, marca, modelo ou tipo..."
+                        className="pl-10 border-gray-200 bg-gray-50/50 h-10 w-full"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                </div>
             </div>
 
+            {/* Content Grid */}
             {filteredMachines.length === 0 ? (
-                <div className="text-center py-10 text-gray-500">
+                <div className="text-center py-20 text-gray-400 bg-white rounded-lg border border-dashed">
                     Nenhuma máquina encontrada.
                 </div>
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {filteredMachines.map((machine) => (
                         <div key={machine.id} onClick={() => handleMachineClick(machine)}>
                             <MachineCard machine={machine} />
