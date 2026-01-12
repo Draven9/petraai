@@ -68,6 +68,12 @@ function AppSidebar() {
 
     const adminNav = [
         {
+            title: "Usuários",
+            subtitle: "Gestão de equipe",
+            url: "/users",
+            icon: User,
+        },
+        {
             title: "Documentação",
             subtitle: "Acesse documentos e guias",
             url: "/documentation",

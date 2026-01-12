@@ -31,5 +31,32 @@ export const userService = {
 
         if (error) throw error
         return data[0]
+    },
+
+    updateStatus: async (userId, active) => {
+        const { data, error } = await supabase
+            .from('users')
+            .update({ active })
+            .eq('id', userId)
+            .select()
+
+        if (error) throw error
+        return data[0]
+    },
+
+    create: async (userData) => {
+        // Nota: Em produção, isso deveria ser feito via supabase.auth.admin.createUser
+        // Aqui estamos criando apenas o registro na tabela public.users
+        const { data, error } = await supabase
+            .from('users')
+            .insert([{
+                ...userData,
+                active: true,
+                created_date: new Date()
+            }])
+            .select()
+
+        if (error) throw error
+        return data[0]
     }
 }
