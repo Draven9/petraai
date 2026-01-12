@@ -27,6 +27,19 @@ export const companyService = {
         return data
     },
 
+    // Apenas Atualiza (útil para patches parciais sem violar constraints de insert)
+    update: async (id, companyData) => {
+        const { data, error } = await supabase
+            .from('companies')
+            .update(companyData)
+            .eq('id', id)
+            .select()
+            .single()
+
+        if (error) throw error
+        return data
+    },
+
     uploadLogo: async (file) => {
         const fileExt = file.name.split('.').pop()
         const fileName = `logo_${Date.now()}.${fileExt}`
