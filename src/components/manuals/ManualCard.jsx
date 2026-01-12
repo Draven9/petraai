@@ -1,11 +1,23 @@
 import { Card, CardContent, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { FileText, Download } from "lucide-react"
+import { FileText, Download, Trash2 } from "lucide-react"
 
-export function ManualCard({ manual }) {
+export function ManualCard({ manual, isAdmin, onDelete }) {
+    const handleDelete = (e) => {
+        e.stopPropagation()
+        if (confirm(`Tem certeza que deseja excluir o manual "${manual.title}"?`)) {
+            onDelete(manual.id)
+        }
+    }
+
+    const handleDownload = (e) => {
+        e.stopPropagation()
+        window.open(manual.file_url, '_blank')
+    }
+
     return (
-        <Card className="flex flex-col justify-between h-full hover:border-[var(--primary-orange)] transition-colors">
+        <Card className="flex flex-col justify-between h-full hover:border-[var(--primary-orange)] transition-colors group relative">
             <CardContent className="pt-6">
                 <div className="flex items-start justify-between">
                     <div className="rounded-lg bg-blue-50 p-2 dark:bg-blue-900/20">
@@ -21,11 +33,23 @@ export function ManualCard({ manual }) {
                     Modelo: {manual.model || 'Todos'} | Marca: {manual.brand}
                 </div>
             </CardContent>
-            <CardFooter className="pt-0">
-                <Button className="w-full gap-2" variant="outline" size="sm">
+
+            <CardFooter className="pt-0 gap-2">
+                <Button className="flex-1 gap-2" variant="outline" size="sm" onClick={handleDownload}>
                     <Download className="h-4 w-4" />
-                    Baixar PDF
+                    Baixar
                 </Button>
+                {isAdmin && (
+                    <Button
+                        variant="destructive"
+                        size="sm"
+                        className="opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={handleDelete}
+                        title="Excluir Manual"
+                    >
+                        <Trash2 className="h-4 w-4" />
+                    </Button>
+                )}
             </CardFooter>
         </Card>
     )

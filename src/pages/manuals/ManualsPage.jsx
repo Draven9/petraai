@@ -63,6 +63,16 @@ export default function ManualsPage() {
         setSearchTerm('')
     }
 
+    const handleDelete = async (id) => {
+        try {
+            await manualsService.delete(id)
+            await loadManuals(searchTerm) // Reload
+        } catch (error) {
+            console.error("Erro ao deletar:", error)
+            alert("Erro ao excluir manual: " + error.message)
+        }
+    }
+
     if (loading && manuals.length === 0) return <Loading />
     if (error) return <Error message={error} />
 
@@ -130,7 +140,11 @@ export default function ManualsPage() {
                 <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
                     {filteredManuals.map(manual => (
                         <div key={manual.id} onClick={() => setViewPdf({ url: manual.file_url, title: manual.title })} className="cursor-pointer">
-                            <ManualCard manual={manual} />
+                            <ManualCard
+                                manual={manual}
+                                isAdmin={isAdmin}
+                                onDelete={handleDelete}
+                            />
                         </div>
                     ))}
                 </div>
