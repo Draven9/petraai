@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { MachineSelector } from '@/components/chat/MachineSelector'
+import { chatService } from '@/services/chatService'
 import { ChatMessage } from '@/components/chat/ChatMessage'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'

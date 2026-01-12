@@ -150,7 +150,104 @@ export const aiService = {
         }
     },
 
-    // Debug: Lista modelos disponíveis (Google ou OpenAI Compatible)
+    // Chat Contínuo (Histórico)
+    sendMessage: async (machine, history) => {
+        const config = await aiService.getConfig()
+        if (!config || !config.api_key) throw new Error("API Key faltante")
+
+        // 1. System Prompt com Contexto
+        const systemInstruction = `Você é um assistente técnico especialista.
+Máquina em foco: ${machine.name} (${machine.brand} ${machine.model}).
+Responda dúvidas técnicas, explique procedimentos e ajude no diagnóstico.
+Seja direto, profissional e seguro. Use formatação Markdown.`
+
+        // 2. Preparar Mensagens
+        // OpenAI format: [{role: 'system', ...}, {role: 'user', ...}]
+        // Google format: contents: [{role: 'user', parts: []}, {role: 'model', parts: []}]
+
+        const isGoogle = config.provider?.toLowerCase().includes('google')
+
+        try {
+            if (isGoogle) {
+                // Adapter Google Gemini
+                // Note: Gemini API uses 'user' and 'model' roles. And System instructions are separate in beta, or just prepended.
+                // We will prepend system prompt to first user message or use formatted history.
+
+                const googleContents = history.map(msg => ({
+                    role: msg.role === 'assistant' ? 'model' : 'user',
+                    parts: [{ text: typeof msg.content === 'object' ? JSON.stringify(msg.content) : msg.content }]
+                }))
+
+                // Add System Prompt Context to the last message or as a separate turn? 
+                // Best for simple implementations: Prepend to the LATEST user message or formatting.
+                // Let's prepend to the very first message if possible, or just add context string.
+
+                // For simplicity/robustness: Just use the latest message with full history context is standard RAG, but here we pass full history.
+                // We'll trust the model to read the history.
+                // We inject the "System Instruction" as a prefix to the valid history or a virtual system message if supported (Gemini v1beta supports system_instruction now, but let's stick to prompt injection for compatibility).
+
+                if (googleContents.length > 0 && googleContents[0].role === 'user') {
+                    googleContents[0].parts[0].text = systemInstruction + "\n\n" + googleContents[0].parts[0].text
+                } else {
+                    // If history starts with model (rare) or empty
+                    googleContents.unshift({ role: 'user', parts: [{ text: systemInstruction }] })
+                }
+
+                const baseUrl = (config.base_url || 'https://generativelanguage.googleapis.com/v1beta').replace(/\/$/, '')
+                const modelName = config.model.startsWith('models/') ? config.model : `models/${config.model}`
+                const url = `${baseUrl}/${modelName}:generateContent?key=${config.api_key}`
+
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contents: googleContents })
+                })
+
+                if (!response.ok) {
+                    const err = await response.json()
+                    throw new Error(err.error?.message || 'Google API Error')
+                }
+
+                const data = await response.json()
+                const text = data.candidates?.[0]?.content?.parts?.[0]?.text
+                return text
+
+            } else {
+                // OpenAI Adapter
+                const messages = [
+                    { role: "system", content: systemInstruction },
+                    ...history.map(msg => ({
+                        role: msg.role,
+                        content: typeof msg.content === 'object' ? JSON.stringify(msg.content) : msg.content
+                    }))
+                ]
+
+                let baseUrl = (config.base_url || 'https://api.openai.com/v1').replace(/\/$/, '')
+                const response = await fetch(`${baseUrl}/chat/completions`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${config.api_key}`
+                    },
+                    body: JSON.stringify({
+                        model: config.model,
+                        messages: messages
+                    })
+                })
+
+                if (!response.ok) {
+                    const err = await response.json()
+                    throw new Error(err.error?.message || 'AI API Error')
+                }
+
+                const data = await response.json()
+                return data.choices[0].message.content
+            }
+        } catch (error) {
+            console.error("Chat Error:", error)
+            throw error
+        }
+    },
     listModels: async (apiKey, provider, baseUrl) => {
         try {
             const isGoogle = provider?.toLowerCase().includes('google')

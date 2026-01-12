@@ -2,6 +2,21 @@ import { Bot, User, AlertTriangle, Wrench, Package, CheckCircle2 } from 'lucide-
 import { Card } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 
+// Helper safe render
+const renderAIItem = (item) => {
+    if (!item) return ""
+    if (typeof item === 'string') return item
+    if (typeof item === 'object') {
+        if (item.action && item.component_system) return <span><strong>[{item.component_system}]</strong> {item.action}</span>
+        if (item.cause && item.probability) return <span>{item.cause} <em className="text-xs text-gray-400">({item.probability})</em></span>
+        if (item.action) return item.action
+        if (item.description) return item.description
+        if (item.text) return item.text
+        return JSON.stringify(item)
+    }
+    return String(item)
+}
+
 export function ChatMessage({ role, content }) {
     const isAi = role === 'assistant'
 
@@ -52,7 +67,7 @@ export function ChatMessage({ role, content }) {
                                 <ul className="space-y-1">
                                     {structuredContent.possible_causes.map((cause, idx) => (
                                         <li key={idx} className="text-sm bg-amber-50 p-2 rounded border border-amber-100 text-amber-900">
-                                            {cause}
+                                            {renderAIItem(cause)}
                                         </li>
                                     ))}
                                 </ul>
@@ -69,7 +84,7 @@ export function ChatMessage({ role, content }) {
                                     {structuredContent.suggested_solutions.map((sol, idx) => (
                                         <li key={idx} className="text-sm flex gap-2 items-start">
                                             <span className="text-green-500 font-bold">•</span>
-                                            <span className="text-gray-700">{sol}</span>
+                                            <span className="text-gray-700">{renderAIItem(sol)}</span>
                                         </li>
                                     ))}
                                 </ul>
@@ -85,7 +100,7 @@ export function ChatMessage({ role, content }) {
                                 <div className="flex flex-wrap gap-2">
                                     {structuredContent.parts_to_check.map((part, idx) => (
                                         <span key={idx} className="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded border border-blue-100 font-medium">
-                                            {part}
+                                            {renderAIItem(part)}
                                         </span>
                                     ))}
                                 </div>
@@ -99,7 +114,7 @@ export function ChatMessage({ role, content }) {
                                 {structuredContent.checklist.map((item, idx) => (
                                     <div key={idx} className="flex items-center gap-2 text-sm text-gray-600">
                                         <CheckCircle2 className="w-3 h-3 text-gray-300" />
-                                        <span>{item}</span>
+                                        <span>{renderAIItem(item)}</span>
                                     </div>
                                 ))}
                             </div>
