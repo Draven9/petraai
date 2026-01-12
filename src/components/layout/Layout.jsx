@@ -1,16 +1,11 @@
 
 import { useState } from "react"
 import { SidebarProvider, Sidebar, SidebarContent, SidebarHeader, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarTrigger, SidebarRail } from "@/components/ui/sidebar"
-import { Home, Settings, User, LogOut, Book } from "lucide-react"
+import { Home, Settings, User, LogOut, Book, MessageSquare, FileText } from "lucide-react"
 import { useAuth } from "@/context/AuthContext"
 
 // Simple Nav Items for Phase 1
 const items = [
-    {
-        title: "Início",
-        url: "#",
-        icon: Home,
-    },
     {
         title: "Início",
         url: "/",
@@ -20,6 +15,16 @@ const items = [
         title: "Minha Frota",
         url: "/machines",
         icon: Settings,
+    },
+    {
+        title: "Chamados",
+        url: "/tickets",
+        icon: FileText,
+    },
+    {
+        title: "IA Diagnóstico",
+        url: "/chat",
+        icon: MessageSquare,
     },
     {
         title: "Manuais",
