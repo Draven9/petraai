@@ -7,6 +7,7 @@ import MachinesPage from '@/pages/machines/MachinesPage'
 import ManualsPage from './pages/manuals/ManualsPage'
 import SettingsPage from './pages/settings/SettingsPage'
 import TicketsPage from './pages/tickets/TicketsPage'
+import DocumentationPage from './pages/help/DocumentationPage'
 import { ChatSupport } from '@/pages/chat/ChatSupport'
 import Layout from '@/components/layout/Layout'
 import { Button } from '@/components/ui/button'
@@ -58,6 +59,7 @@ function App() {
             <Route element={<Layout><TicketsPage /></Layout>} path="/tickets" />
             <Route element={<Layout><ManualsPage /></Layout>} path="/manuals" />
             <Route element={<Layout><ChatSupport /></Layout>} path="/chat" />
+            <Route element={<Layout><DocumentationPage /></Layout>} path="/documentation" />
             <Route element={<Layout><SettingsPage /></Layout>} path="/settings" />
           </Route>
 

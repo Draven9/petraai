@@ -1,45 +1,55 @@
 
 import { useState } from "react"
 import { SidebarProvider, Sidebar, SidebarContent, SidebarHeader, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarTrigger, SidebarRail } from "@/components/ui/sidebar"
-import { Home, Settings, User, LogOut, Book, MessageSquare, FileText } from "lucide-react"
+import { Home, Settings, User, LogOut, Book, MessageSquare, FileText, BookOpen } from "lucide-react"
 import { useAuth } from "@/context/AuthContext"
 
-// Simple Nav Items for Phase 1
-const items = [
-    {
-        title: "Início",
-        url: "/",
-        icon: Home,
-    },
-    {
-        title: "Minha Frota",
-        url: "/machines",
-        icon: Settings,
-    },
-    {
-        title: "Chamados",
-        url: "/tickets",
-        icon: FileText,
-    },
-    {
-        title: "IA Diagnóstico",
-        url: "/chat",
-        icon: MessageSquare,
-    },
-    {
-        title: "Manuais",
-        url: "/manuals",
-        icon: Book,
-    },
-    {
-        title: "Configurações",
-        url: "/settings",
-        icon: Settings,
-    },
-]
+
 
 function AppSidebar() {
-    const { signOut, user } = useAuth()
+    const { signOut, user, isAdmin } = useAuth()
+
+    const items = [
+        {
+            title: "Início",
+            url: "/",
+            icon: Home,
+        },
+        {
+            title: "Minha Frota",
+            url: "/machines",
+            icon: Settings,
+        },
+        {
+            title: "Chamados",
+            url: "/tickets",
+            icon: FileText,
+        },
+        {
+            title: "IA Diagnóstico",
+            url: "/chat",
+            icon: MessageSquare,
+        },
+        {
+            title: "Manuais",
+            url: "/manuals",
+            icon: Book,
+        },
+        {
+            title: "Configurações",
+            url: "/settings",
+            icon: Settings,
+        },
+    ]
+
+    // Admin Only Items
+    if (isAdmin) {
+        items.push({
+            title: "Documentação",
+            url: "/documentation",
+            icon: BookOpen,
+        })
+    }
 
     return (
         <Sidebar>
