@@ -22,7 +22,7 @@ import { userService } from '@/services/userService'
 import { useToast } from '@/context/ToastContext'
 import { Loader2 } from 'lucide-react'
 
-export function AddUserDialog({ onUserCreated, trigger }) {
+export function AddUserDialog({ onUserCreated, children }) {
     const [open, setOpen] = useState(false)
     const [loading, setLoading] = useState(false)
     const { toast } = useToast()
@@ -45,7 +45,7 @@ export function AddUserDialog({ onUserCreated, trigger }) {
             onUserCreated()
         } catch (error) {
             console.error(error)
-            toast.error("Erro", "Falha ao criar usuário: " + error.message)
+            toast.error("Erro", "Falha ao criar usuário: " + (error.message || "Erro desconhecido"))
         } finally {
             setLoading(false)
         }
@@ -54,7 +54,7 @@ export function AddUserDialog({ onUserCreated, trigger }) {
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-                {trigger || <Button>Adicionar Usuário</Button>}
+                {children || <Button>Adicionar Usuário</Button>}
             </DialogTrigger>
             <DialogContent className="sm:max-w-[425px]">
                 <DialogHeader>

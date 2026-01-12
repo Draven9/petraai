@@ -83,15 +83,12 @@ export default function UsersPage() {
                         onChange={e => setSearchTerm(e.target.value)}
                     />
                 </div>
-                <AddUserDialog
-                    onUserCreated={loadUsers}
-                    trigger={
-                        <Button className="bg-[var(--primary-orange)] hover:bg-[var(--primary-orange)]/90 shadow-sm w-full md:w-auto">
-                            <Plus className="mr-2 h-4 w-4" />
-                            Adicionar Usuário
-                        </Button>
-                    }
-                />
+                <AddUserDialog onUserCreated={loadUsers}>
+                    <Button className="bg-[var(--primary-orange)] hover:bg-[var(--primary-orange)]/90 shadow-sm w-full md:w-auto">
+                        <Plus className="mr-2 h-4 w-4" />
+                        Adicionar Usuário
+                    </Button>
+                </AddUserDialog>
             </div>
 
             {/* Table */}
