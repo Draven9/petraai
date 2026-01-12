@@ -41,6 +41,12 @@ function AppSidebar() {
 
     const mainNav = [
         {
+            title: "Visão Geral",
+            subtitle: "Resumo do sistema",
+            url: "/",
+            icon: Home,
+        },
+        {
             title: "Chat IA",
             subtitle: "Suporte técnico inteligente",
             url: "/chat",
