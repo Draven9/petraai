@@ -1,6 +1,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { manualsService } from '@/services/manualsService'
+import { useToast } from '@/context/ToastContext'
 import { ManualCard } from '@/components/manuals/ManualCard'
 import { ManualUploadForm } from '@/components/manuals/ManualUploadForm'
 import { PdfViewerModal } from '@/components/manuals/PdfViewerModal'
@@ -14,6 +15,7 @@ import { useAuth } from '@/context/AuthContext'
 
 export default function ManualsPage() {
     const { isAdmin } = useAuth()
+    const { toast } = useToast()
     const [manuals, setManuals] = useState([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState(null)
@@ -72,6 +74,37 @@ export default function ManualsPage() {
         } catch (error) {
             console.error("Erro ao deletar:", error)
             alert("Erro ao excluir manual: " + error.message)
+        }
+    }
+
+    const handleProcessManual = async (manual) => {
+        // Optimistic UI or Loading State specific to card? 
+        // For simplicity, global loading or just toast for now.
+        // Better: toast promise
+
+        // Check if we have the file blob? No, we have the URL. 
+        // manualsService.processManual expects a File object (from upload) OR we need to fetch it.
+        // Let's modify manualsService to accept manualId and URL/File?
+        // Actually, manualsService.processManual as currently written expects a 'File' object because it calls arrayBuffer().
+
+        // We need to fetch the file from the URL first.
+        try {
+            const toastId = toast.loading("Processando manual...", "A extração de texto e indexação IA iniciou. Isso pode levar alguns segundos.")
+
+            // Fetch blob from public URL (CORS might be an issue if not configured, but Supabase usually fine)
+            const response = await fetch(manual.file_url)
+            const blob = await response.blob()
+            const file = new File([blob], manual.title, { type: blob.type })
+
+            await manualsService.processManual(manual.id, file)
+
+            toast.dismiss(toastId)
+            toast.success("Manual Processado!", "O manual agora está indexado e pronto para o Chat IA.")
+
+            loadManuals(searchTerm) // Reload to update badge
+        } catch (error) {
+            console.error("Processing error:", error)
+            toast.error("Erro no processamento", error.message)
         }
     }
 
@@ -185,6 +218,7 @@ export default function ManualsPage() {
                                 manual={manual}
                                 isAdmin={isAdmin}
                                 onDelete={handleDelete}
+                                onProcess={handleProcessManual}
                             />
                         </div>
                     ))}

@@ -1,4 +1,5 @@
 import { companyService } from './companyService'
+import { supabase } from '@/lib/supabase'
 
 const DEFAULT_PROMPT = `Você é um especialista em manutenção de máquinas agrícolas, com experiência prática em diagnóstico, reparo e manutenção preventiva de tratores, colheitadeiras e implementos agrícolas.
 
@@ -150,18 +151,59 @@ export const aiService = {
         }
     },
 
+    // Busca vetorial nos manuais
+    searchManuals: async (queryText) => {
+        try {
+            const embedding = await aiService.generateEmbedding(queryText)
+
+            // Import supabase dynamically or helper if not available at top. 
+            // Better: Add import { supabase } from '@/lib/supabase' at top of file
+            // Assuming we added it.
+            const { data, error } = await supabase.rpc('match_manuals', {
+                query_embedding: embedding,
+                match_threshold: 0.5,
+                match_count: 5
+            })
+
+            if (error) {
+                console.error("Match error:", error)
+                return []
+            }
+            return data
+        } catch (error) {
+            console.error("RAG Search error:", error)
+            return []
+        }
+    },
+
     // Chat Contínuo (Histórico)
     sendMessage: async (machine, history) => {
         const config = await aiService.getConfig()
         if (!config || !config.api_key) throw new Error("API Key faltante")
 
+        // 0. RAG Retrieval
+        // Get the last user message to use as query
+        const lastUserMsg = history[history.length - 1]
+        let ragContext = ""
+
+        if (lastUserMsg && lastUserMsg.role === 'user') {
+            const chunks = await aiService.searchManuals(lastUserMsg.content)
+            if (chunks && chunks.length > 0) {
+                ragContext = `\n\nCONTEXTO DOS MANUAIS TÉCNICOS (Use estas informações para responder):\n` +
+                    chunks.map(c => `- ${c.content}`).join('\n')
+            }
+        }
+
         // 1. System Prompt com Contexto
         const systemInstruction = `Você é um assistente técnico especialista.
 Máquina em foco: ${machine.name} (${machine.brand} ${machine.model}).
 Responda dúvidas técnicas, explique procedimentos e ajude no diagnóstico.
-Seja direto, profissional e seguro. Use formatação Markdown.`
+Se a informação estiver no CONTEXTO DOS MANUAIS, cite-a. Se não souber, diga que não encontrou nos manuais.
+Seja direto, profissional e seguro. Use formatação Markdown.
+${ragContext}`
 
         // 2. Preparar Mensagens
+        // ... (rest of the function)
         // OpenAI format: [{role: 'system', ...}, {role: 'user', ...}]
         // Google format: contents: [{role: 'user', parts: []}, {role: 'model', parts: []}]
 
@@ -173,23 +215,15 @@ Seja direto, profissional e seguro. Use formatação Markdown.`
                 // Note: Gemini API uses 'user' and 'model' roles. And System instructions are separate in beta, or just prepended.
                 // We will prepend system prompt to first user message or use formatted history.
 
+                // Construct history ensuring alternating roles if possible, but Gemini is lenient-ish now.
                 const googleContents = history.map(msg => ({
                     role: msg.role === 'assistant' ? 'model' : 'user',
                     parts: [{ text: typeof msg.content === 'object' ? JSON.stringify(msg.content) : msg.content }]
                 }))
 
-                // Add System Prompt Context to the last message or as a separate turn? 
-                // Best for simple implementations: Prepend to the LATEST user message or formatting.
-                // Let's prepend to the very first message if possible, or just add context string.
-
-                // For simplicity/robustness: Just use the latest message with full history context is standard RAG, but here we pass full history.
-                // We'll trust the model to read the history.
-                // We inject the "System Instruction" as a prefix to the valid history or a virtual system message if supported (Gemini v1beta supports system_instruction now, but let's stick to prompt injection for compatibility).
-
                 if (googleContents.length > 0 && googleContents[0].role === 'user') {
                     googleContents[0].parts[0].text = systemInstruction + "\n\n" + googleContents[0].parts[0].text
                 } else {
-                    // If history starts with model (rare) or empty
                     googleContents.unshift({ role: 'user', parts: [{ text: systemInstruction }] })
                 }
 
@@ -280,6 +314,67 @@ Seja direto, profissional e seguro. Use formatação Markdown.`
         } catch (error) {
             console.error("Erro ao listar modelos:", error)
             return { error: error.message }
+        }
+    },
+
+    // Gera Embedding (Vetor) para RAG
+    generateEmbedding: async (text) => {
+        const config = await aiService.getConfig()
+        if (!config || !config.api_key) throw new Error("API Key faltante")
+
+        const isGoogle = config.provider?.toLowerCase().includes('google') ||
+            config.provider?.toLowerCase().includes('gemini')
+
+        try {
+            if (isGoogle) {
+                // Google Gemini Embeddings
+                // Model: models/text-embedding-004
+                const baseUrl = (config.base_url || 'https://generativelanguage.googleapis.com/v1beta').replace(/\/$/, '')
+                const modelName = 'models/text-embedding-004' // Fixed model for embeddings usually
+                const url = `${baseUrl}/${modelName}:embedContent?key=${config.api_key}`
+
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        content: { parts: [{ text: text }] }
+                    })
+                })
+
+                if (!response.ok) {
+                    const err = await response.json()
+                    throw new Error(err.error?.message || 'Google Embedding Error')
+                }
+
+                const data = await response.json()
+                return data.embedding.values // Array of floats
+            } else {
+                // OpenAI Embeddings
+                // Model: text-embedding-3-small (default recommended)
+                let baseUrl = (config.base_url || 'https://api.openai.com/v1').replace(/\/$/, '')
+                const response = await fetch(`${baseUrl}/embeddings`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${config.api_key}`
+                    },
+                    body: JSON.stringify({
+                        input: text,
+                        model: 'text-embedding-3-small'
+                    })
+                })
+
+                if (!response.ok) {
+                    const err = await response.json()
+                    throw new Error(err.error?.message || 'OpenAI Embedding Error')
+                }
+
+                const data = await response.json()
+                return data.data[0].embedding // Array of floats
+            }
+        } catch (error) {
+            console.error("Embedding Error:", error)
+            throw error
         }
     }
 }

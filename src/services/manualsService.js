@@ -1,4 +1,9 @@
 import { supabase } from '@/lib/supabase'
+import { aiService } from './aiService'
+import * as pdfjsLib from 'pdfjs-dist'
+
+// Configure worker for PDF.js (CDN for simplicity in dev)
+pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`
 
 export const manualsService = {
     list: async (searchTerm = '') => {
@@ -8,9 +13,6 @@ export const manualsService = {
             .order('title')
 
         if (searchTerm) {
-            // Busca no titulo OU no conteudo extraido
-            // Nota: full-text search seria ideal com 'websearch_to_tsquery' se tivessimos criado indice FTS
-            // Como criamos um indice gin(to_tsvector) na migration 002, podemos usar 'textSearch'
             const term = `%${searchTerm}%`
             query = query.or(`title.ilike.${term},machine_type.ilike.${term},content_extracted.ilike.${term}`)
         }
@@ -30,6 +32,7 @@ export const manualsService = {
     },
 
     delete: async (id) => {
+        // Cascade delete on embeddings is handled by DB FK
         const { error } = await supabase
             .from('technical_manuals')
             .delete()
@@ -53,5 +56,83 @@ export const manualsService = {
             .getPublicUrl(filePath)
 
         return { publicUrl, fileName: file.name }
+    },
+
+    // Process PDF: Extract Text -> Chunk -> Bed -> Store
+    processManual: async (manualId, file) => {
+        try {
+            console.log(`Processing manual ${manualId}...`)
+
+            // 1. Extract Text
+            const arrayBuffer = await file.arrayBuffer()
+            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
+            let fullText = ""
+
+            console.log(`PDF loaded. Pages: ${pdf.numPages}`)
+
+            for (let i = 1; i <= pdf.numPages; i++) {
+                const page = await pdf.getPage(i)
+                const textContent = await page.getTextContent()
+                const pageText = textContent.items.map(item => item.str).join(' ')
+                fullText += pageText + "\n"
+            }
+
+            // Update main record with extracted text (searchable fallback)
+            await supabase.from('technical_manuals')
+                .update({ content_extracted: fullText })
+                .eq('id', manualId)
+
+            // 2. Chunking (Simple strategy: 1000 chars ~ 200 tokens, overlap 200)
+            const chunkSize = 1000
+            const overlap = 200
+            const chunks = []
+
+            for (let i = 0; i < fullText.length; i += (chunkSize - overlap)) {
+                chunks.push(fullText.slice(i, i + chunkSize))
+            }
+
+            console.log(`Created ${chunks.length} chunks. Generating embeddings...`)
+
+            // 3. Generate Embeddings & Store
+            // Process in batches to avoid rate limits
+            for (const chunk of chunks) {
+                if (!chunk || chunk.length < 50) continue // Skip tiny chunks
+
+                const embedding = await aiService.generateEmbedding(chunk)
+
+                await supabase.from('manual_embeddings').insert({
+                    manual_id: manualId,
+                    content: chunk,
+                    embedding: embedding,
+                    metadata: { source: 'pdf_upload' }
+                })
+            }
+
+            console.log("Processing complete.")
+            return true
+
+        } catch (error) {
+            console.error("Error processing manual:", error)
+            throw error
+        }
+    },
+
+    // RAG Search
+    search: async (queryText) => {
+        try {
+            const embedding = await aiService.generateEmbedding(queryText)
+
+            const { data, error } = await supabase.rpc('match_manuals', {
+                query_embedding: embedding,
+                match_threshold: 0.5, // Similarity threshold
+                match_count: 5 // Top 5 chunks
+            })
+
+            if (error) throw error
+            return data
+        } catch (error) {
+            console.error("Search error:", error)
+            return []
+        }
     }
 }
