@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS public.manual_embeddings (
 ALTER TABLE public.manual_embeddings ENABLE ROW LEVEL SECURITY;
 
 -- Allow read access to authenticated users
+DROP POLICY IF EXISTS "Allow read access to authenticated users" ON public.manual_embeddings;
 CREATE POLICY "Allow read access to authenticated users"
 ON public.manual_embeddings
 FOR SELECT
@@ -22,6 +23,7 @@ TO authenticated
 USING (true);
 
 -- Allow insert/update/delete to authenticated users (admin logic handled in app for now, or refine later)
+DROP POLICY IF EXISTS "Allow write access to authenticated users" ON public.manual_embeddings;
 CREATE POLICY "Allow write access to authenticated users"
 ON public.manual_embeddings
 FOR ALL
