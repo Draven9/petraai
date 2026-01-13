@@ -3,33 +3,47 @@ import { TicketList } from '@/components/tickets/TicketList'
 import { ProblemReportDialog } from '@/components/tickets/ProblemReportDialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { RefreshCw, Download, Search, SlidersHorizontal, FilterX, FileDown } from 'lucide-react'
+import { Search, SlidersHorizontal, FilterX, FileDown, ChevronLeft, ChevronRight } from 'lucide-react'
 import { ticketsService } from '@/services/ticketsService'
 import { format } from 'date-fns'
 
 export default function TicketsPage() {
     const [tickets, setTickets] = useState([])
     const [loading, setLoading] = useState(true)
-    const [filteredTickets, setFilteredTickets] = useState([])
     const [refreshTrigger, setRefreshTrigger] = useState(0)
+
+    // Pagination State
+    const [currentPage, setCurrentPage] = useState(1)
+    const [totalPages, setTotalPages] = useState(1)
+    const pageSize = 10
 
     // Filter States
     const [searchText, setSearchText] = useState('')
+    const [statusFilter, setStatusFilter] = useState(null) // Not UI implemented yet but ready
     const [showFilters, setShowFilters] = useState(false)
 
-    useEffect(() => {
-        loadTickets()
-    }, [refreshTrigger])
+    // Add debounce for search or just search on Apply/Enter?
+    // For simplicity, let's search on effect but with debounce ideally. 
+    // Using simple effect for now.
 
     useEffect(() => {
-        applyFilters()
-    }, [tickets, searchText])
+        const timer = setTimeout(() => {
+            loadTickets()
+        }, 500) // Debounce search
+        return () => clearTimeout(timer)
+    }, [refreshTrigger, currentPage, searchText, statusFilter])
 
     const loadTickets = async () => {
         setLoading(true)
         try {
-            const data = await ticketsService.list()
+            const { data, count } = await ticketsService.list({
+                page: currentPage,
+                pageSize,
+                search: searchText,
+                status: statusFilter
+            })
             setTickets(data)
+            setTotalPages(Math.ceil(count / pageSize))
         } catch (error) {
             console.error('Error loading tickets', error)
         } finally {
@@ -37,24 +51,11 @@ export default function TicketsPage() {
         }
     }
 
-    const applyFilters = () => {
-        let result = tickets
-        if (searchText) {
-            const lowerSearch = searchText.toLowerCase()
-            result = result.filter(t =>
-                t.problem_description.toLowerCase().includes(lowerSearch) ||
-                t.machines?.name?.toLowerCase().includes(lowerSearch) ||
-                t.id.toLowerCase().includes(lowerSearch)
-            )
-        }
-        setFilteredTickets(result)
-    }
-
     const handleExportCSV = () => {
-        if (filteredTickets.length === 0) return alert("Nada para exportar")
+        if (tickets.length === 0) return alert("Nada para exportar")
 
-        const headers = ["ID", "Data", "Máquina", "Problema", "Status", "Urgência", "Local"]
-        const rows = filteredTickets.map(t => [
+        // Note: This only exports CURRENT PAGE. Full export would need a separate service call.
+        const rows = tickets.map(t => [
             t.id,
             format(new Date(t.created_date), "yyyy-MM-dd HH:mm"),
             t.machines?.name || "N/A",
@@ -64,6 +65,7 @@ export default function TicketsPage() {
             t.location || ""
         ])
 
+        const headers = ["ID", "Data", "Máquina", "Problema", "Status", "Urgência", "Local"]
         const csvContent = "data:text/csv;charset=utf-8,"
             + headers.join(",") + "\n"
             + rows.map(e => e.join(",")).join("\n")
@@ -71,7 +73,7 @@ export default function TicketsPage() {
         const encodedUri = encodeURI(csvContent)
         const link = document.createElement("a")
         link.setAttribute("href", encodedUri)
-        link.setAttribute("download", `historico_export_${format(new Date(), "yyyyMMdd")}.csv`)
+        link.setAttribute("download", `historico_page_${currentPage}_${format(new Date(), "yyyyMMdd")}.csv`)
         document.body.appendChild(link)
         link.click()
         document.body.removeChild(link)
@@ -79,10 +81,18 @@ export default function TicketsPage() {
 
     const handleTicketCreated = () => {
         setRefreshTrigger(prev => prev + 1)
+        setCurrentPage(1) // Reset to first page
     }
 
     const clearFilters = () => {
         setSearchText('')
+        setCurrentPage(1)
+    }
+
+    const handlePageChange = (newPage) => {
+        if (newPage >= 1 && newPage <= totalPages) {
+            setCurrentPage(newPage)
+        }
     }
 
     return (
@@ -94,7 +104,7 @@ export default function TicketsPage() {
                     <p className="text-gray-500 mt-1">Visualize e gerencie todos os chamados técnicos</p>
                 </div>
                 <Button variant="outline" onClick={handleExportCSV} className="text-orange-600 border-orange-200 hover:bg-orange-50">
-                    <FileDown className="mr-2 h-4 w-4" /> Exportar CSV
+                    <FileDown className="mr-2 h-4 w-4" /> Exportar (Página Atual)
                 </Button>
             </div>
 
@@ -105,10 +115,13 @@ export default function TicketsPage() {
                     <div className="relative flex-grow">
                         <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
                         <Input
-                            placeholder="ID, problema, máquina..."
+                            placeholder="Buscar por descrição do problema..."
                             className="pl-9 bg-gray-50 border-gray-200"
                             value={searchText}
-                            onChange={(e) => setSearchText(e.target.value)}
+                            onChange={(e) => {
+                                setSearchText(e.target.value)
+                                setCurrentPage(1) // Reset page on search
+                            }}
                         />
                     </div>
 
@@ -122,7 +135,7 @@ export default function TicketsPage() {
                             Filtros Mais
                         </Button>
 
-                        <Button className="bg-[var(--primary-orange)] hover:bg-[var(--primary-orange)]/90 px-6">
+                        <Button className="bg-[var(--primary-orange)] hover:bg-[var(--primary-orange)]/90 px-6" onClick={loadTickets}>
                             Aplicar
                         </Button>
 
@@ -138,15 +151,42 @@ export default function TicketsPage() {
 
             {/* List Header */}
             <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-gray-800">Lista de Chamados ({filteredTickets.length})</h2>
-                {/* Optional: Add sort or other controls here */}
+                <h2 className="text-lg font-semibold text-gray-800">Lista de Chamados</h2>
+                <div className="text-sm text-gray-500">
+                    Página {currentPage} de {totalPages}
+                </div>
             </div>
 
             <TicketList
-                tickets={filteredTickets}
+                tickets={tickets}
                 loading={loading}
                 onRefresh={() => setRefreshTrigger(prev => prev + 1)}
             />
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+                <div className="flex items-center justify-center gap-4 mt-8 pb-20">
+                    <Button
+                        variant="outline"
+                        onClick={() => handlePageChange(currentPage - 1)}
+                        disabled={currentPage === 1 || loading}
+                    >
+                        <ChevronLeft className="h-4 w-4 mr-2" />
+                        Anterior
+                    </Button>
+                    <span className="text-sm font-medium text-gray-600">
+                        {currentPage} / {totalPages}
+                    </span>
+                    <Button
+                        variant="outline"
+                        onClick={() => handlePageChange(currentPage + 1)}
+                        disabled={currentPage === totalPages || loading}
+                    >
+                        Próximo
+                        <ChevronRight className="h-4 w-4 ml-2" />
+                    </Button>
+                </div>
+            )}
 
             <div className="fixed bottom-6 right-6">
                 <ProblemReportDialog onTicketCreated={handleTicketCreated} />

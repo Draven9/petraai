@@ -9,7 +9,11 @@ const renderAIItem = (item) => {
     if (typeof item === 'object') {
         // Handle common structured keys the AI might use
         if (item.action && item.component_system) return <span><strong>[{item.component_system}]</strong> {item.action}</span>
-        if (item.cause && item.probability) return <span>{item.cause} <em className="text-xs text-gray-400">({item.probability})</em></span>
+        if (item.cause) {
+            const prob = item.probability || item.probability_rank
+            if (prob) return <span>{item.cause} <em className="text-xs text-gray-400">({typeof prob === 'number' ? `${prob}º mais provável` : prob})</em></span>
+            return item.cause
+        }
         if (item.action) return item.action
         if (item.description) return item.description
         if (item.text) return item.text

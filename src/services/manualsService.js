@@ -6,20 +6,47 @@ import * as pdfjsLib from 'pdfjs-dist'
 pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`
 
 export const manualsService = {
-    list: async (searchTerm = '') => {
+    list: async ({ page = 1, pageSize = 20, search = '', type = 'all', brand = 'all' } = {}) => {
+        const from = (page - 1) * pageSize
+        const to = from + pageSize - 1
+
         let query = supabase
             .from('technical_manuals')
-            .select('*')
+            .select('*', { count: 'exact' })
             .order('title')
+            .range(from, to)
 
-        if (searchTerm) {
-            const term = `%${searchTerm}%`
+        if (search) {
+            const term = `%${search}%`
             query = query.or(`title.ilike.${term},machine_type.ilike.${term},content_extracted.ilike.${term}`)
         }
 
-        const { data, error } = await query
+        if (type && type !== 'all') {
+            query = query.eq('machine_type', type)
+        }
+
+        if (brand && brand !== 'all') {
+            query = query.ilike('brand', brand) // ilike for brand to be safer?
+        }
+
+        const { data, count, error } = await query
         if (error) throw error
-        return data
+        return { data, count }
+    },
+
+    getFilters: async () => {
+        // Fetch specific columns to build filter lists
+        const { data, error } = await supabase
+            .from('technical_manuals')
+            .select('machine_type, brand')
+
+        if (error) throw error
+
+        // Extract unique values in JS (lightweight enough for metadata)
+        const types = [...new Set(data.map(i => i.machine_type))].filter(Boolean).sort()
+        const brands = [...new Set(data.map(i => i.brand))].filter(Boolean).sort()
+
+        return { types, brands }
     },
 
     create: async (manualData) => {

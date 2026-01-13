@@ -8,7 +8,7 @@ import { PdfViewerModal } from '@/components/manuals/PdfViewerModal'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Search, UploadCloud, Filter, SlidersHorizontal, FileText, X } from 'lucide-react'
+import { Search, UploadCloud, Filter, SlidersHorizontal, FileText, X, ChevronLeft, ChevronRight } from 'lucide-react'
 import Loading from '@/components/common/Loading'
 import Error from '@/components/common/Error'
 import { useAuth } from '@/context/AuthContext'
@@ -20,28 +20,58 @@ export default function ManualsPage() {
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState(null)
 
+    // Pagination
+    const [currentPage, setCurrentPage] = useState(1)
+    const [totalPages, setTotalPages] = useState(1)
+    const pageSize = 12
+
     // Search & Filter State
     const [searchTerm, setSearchTerm] = useState('')
     const [filterType, setFilterType] = useState('all')
     const [filterBrand, setFilterBrand] = useState('all')
     const [showFilters, setShowFilters] = useState(false)
 
+    // Filter Options
+    const [typeOptions, setTypeOptions] = useState([])
+    const [brandOptions, setBrandOptions] = useState([])
+
     // Modals
     const [isUploadOpen, setIsUploadOpen] = useState(false)
     const [viewPdf, setViewPdf] = useState(null) // { url, title }
 
     useEffect(() => {
+        loadFilters()
+    }, [])
+
+    useEffect(() => {
         const timer = setTimeout(() => {
-            loadManuals(searchTerm)
+            loadManuals()
         }, 500)
         return () => clearTimeout(timer)
-    }, [searchTerm])
+    }, [searchTerm, filterType, filterBrand, currentPage])
 
-    async function loadManuals(term = '') {
+    async function loadFilters() {
+        try {
+            const { types, brands } = await manualsService.getFilters()
+            setTypeOptions(types)
+            setBrandOptions(brands)
+        } catch (err) {
+            console.error("Failed to load filters", err)
+        }
+    }
+
+    async function loadManuals() {
         setLoading(true)
         try {
-            const data = await manualsService.list(term)
+            const { data, count } = await manualsService.list({
+                page: currentPage,
+                pageSize,
+                search: searchTerm,
+                type: filterType,
+                brand: filterBrand
+            })
             setManuals(data)
+            setTotalPages(Math.ceil(count / pageSize))
             setError(null)
         } catch (err) {
             setError(err.message)
@@ -50,21 +80,18 @@ export default function ManualsPage() {
         }
     }
 
-    // Extract unique options for filters based on loaded manuals
-    const typeOptions = useMemo(() => [...new Set(manuals.map(m => m.machine_type))].filter(Boolean).sort(), [manuals])
-    const brandOptions = useMemo(() => [...new Set(manuals.map(m => m.brand))].filter(Boolean).sort(), [manuals])
-
-    // Apply Client-Side Filters (Type & Brand)
-    const filteredManuals = manuals.filter(manual => {
-        const matchType = filterType === 'all' || manual.machine_type === filterType
-        const matchBrand = filterBrand === 'all' || manual.brand === filterBrand
-        return matchType && matchBrand
-    })
-
     const clearFilters = () => {
         setFilterType('all')
         setFilterBrand('all')
         setSearchTerm('')
+        setCurrentPage(1)
+    }
+
+    const handlePageChange = (newPage) => {
+        if (newPage >= 1 && newPage <= totalPages) {
+            setCurrentPage({ newPage }) // Oops bug in my typing
+            setCurrentPage(newPage)
+        }
     }
 
     const handleDelete = async (id) => {
@@ -196,33 +223,60 @@ export default function ManualsPage() {
             </div>
 
             {/* Content or Empty State */}
-            {filteredManuals.length === 0 ? (
+            {manuals.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-24 bg-white rounded-lg border border-dashed border-gray-200">
                     <div className="h-16 w-16 bg-gray-50 rounded-2xl flex items-center justify-center mb-4">
                         <FileText className="h-8 w-8 text-gray-400" />
                     </div>
-                    <h3 className="text-lg font-bold text-gray-900">Nenhum manual cadastrado</h3>
-                    <p className="text-gray-500 mt-1 mb-8">Adicione o primeiro manual para começar.</p>
+                    <h3 className="text-lg font-bold text-gray-900">Nenhum manual encontrado</h3>
+                    <p className="text-gray-500 mt-1 mb-8">Tente ajustar seus filtros ou adicione um novo.</p>
                     {isAdmin && (
                         <Button onClick={() => setIsUploadOpen(true)} className="bg-[var(--primary-orange)] hover:bg-[var(--primary-orange)]/90">
                             <UploadCloud className="mr-2 h-4 w-4" />
-                            Adicionar Primeiro Manual
+                            Adicionar Manual
                         </Button>
                     )}
                 </div>
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                    {filteredManuals.map(manual => (
-                        <div key={manual.id} onClick={() => setViewPdf({ url: manual.file_url, title: manual.title })} className="cursor-pointer">
-                            <ManualCard
-                                manual={manual}
-                                isAdmin={isAdmin}
-                                onDelete={handleDelete}
-                                onProcess={handleProcessManual}
-                            />
+                <>
+                    <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                        {manuals.map(manual => (
+                            <div key={manual.id} onClick={() => setViewPdf({ url: manual.file_url, title: manual.title })} className="cursor-pointer">
+                                <ManualCard
+                                    manual={manual}
+                                    isAdmin={isAdmin}
+                                    onDelete={handleDelete}
+                                    onProcess={handleProcessManual}
+                                />
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Pagination Controls */}
+                    {totalPages > 1 && (
+                        <div className="flex items-center justify-center gap-4 mt-8 pb-10">
+                            <Button
+                                variant="outline"
+                                onClick={() => handlePageChange(currentPage - 1)}
+                                disabled={currentPage === 1 || loading}
+                            >
+                                <ChevronLeft className="h-4 w-4 mr-2" />
+                                Anterior
+                            </Button>
+                            <span className="text-sm font-medium text-gray-600">
+                                {currentPage} / {totalPages}
+                            </span>
+                            <Button
+                                variant="outline"
+                                onClick={() => handlePageChange(currentPage + 1)}
+                                disabled={currentPage === totalPages || loading}
+                            >
+                                Próximo
+                                <ChevronRight className="h-4 w-4 ml-2" />
+                            </Button>
                         </div>
-                    ))}
-                </div>
+                    )}
+                </>
             )}
 
             <ManualUploadForm

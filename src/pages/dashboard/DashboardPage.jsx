@@ -45,12 +45,16 @@ export default function DashboardPage() {
                         stopped: list.filter(m => m.status === 'stopped').length
                     }
                 }),
-                ticketsService.list().then(list => ({
-                    open: list.filter(t => t.status !== 'resolved').length,
-                    highUrgency: list.filter(t => t.urgency === 'high' && t.status !== 'resolved').length,
-                    recent: list.slice(0, 5) // Top 5 most recent
+                // Optimized ticket fetching
+                Promise.all([
+                    ticketsService.getStats(),
+                    ticketsService.list({ page: 1, pageSize: 5 })
+                ]).then(([stats, recentList]) => ({
+                    open: stats.open,
+                    highUrgency: stats.highUrgency,
+                    recent: recentList.data // .data because list returns { data, count }
                 })),
-                manualsService.list().then(list => ({ total: list.length })),
+                manualsService.list({ pageSize: 1 }).then(res => ({ total: res.count })),
                 userService.listAll().then(list => ({
                     total: list.length,
                     active: list.filter(u => u.active !== false).length
