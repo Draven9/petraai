@@ -5,16 +5,64 @@ import { cn } from '@/lib/utils'
 // Helper safe render
 const renderAIItem = (item) => {
     if (!item) return ""
-    if (typeof item === 'string') return item
+
+    // 1. Handle Objects
     if (typeof item === 'object') {
         if (item.action && item.component_system) return <span><strong>[{item.component_system}]</strong> {item.action}</span>
-        if (item.cause && item.probability) return <span>{item.cause} <em className="text-xs text-gray-400">({item.probability})</em></span>
-        if (item.action) return item.action
-        if (item.description) return item.description
-        if (item.text) return item.text
+        if (item.cause) {
+            const prob = item.probability || item.probability_rank
+            const causeContent = renderAIItem(item.cause) // Recurse
+            if (prob) return <span>{causeContent} <em className="text-xs text-gray-400">({typeof prob === 'number' ? `${prob}º mais provável` : prob})</em></span>
+            return causeContent
+        }
+        if (item.solution) {
+            return renderAIItem(item.component_system ? `[${item.component_system}] ${item.solution}` : item.solution)
+        }
+        if (item.part) {
+            return renderAIItem(item.component_system ? `[${item.component_system}] ${item.part}` : item.part)
+        }
+        if (item.action) return renderAIItem(item.action)
+        if (item.description) return renderAIItem(item.description)
+        if (item.text) return renderAIItem(item.text)
         return JSON.stringify(item)
     }
-    return String(item)
+
+    // 2. Handle Strings (Try parse JSON first, then Markdown)
+    const str = String(item)
+    if (str.trim().startsWith('{') && str.includes('}')) {
+        try {
+            const parsed = JSON.parse(str)
+            return renderAIItem(parsed)
+        } catch (e) { }
+    }
+
+    // Markdown Image Support
+    if (str.includes('![')) {
+        return (
+            <span className="inline-block align-top w-full">
+                {str.split(/(!\[.*?\]\(.*?\))/g).map((part, i) => {
+                    const imgMatch = part.match(/!\[(.*?)\]\((.*?)\)/)
+                    if (imgMatch) {
+                        return (
+                            <div key={i} className="my-2 p-1 border rounded bg-gray-50 bg-white block w-full max-w-[200px]">
+                                <img
+                                    src={imgMatch[2]}
+                                    alt={imgMatch[1]}
+                                    className="max-w-full h-auto rounded cursor-pointer hover:opacity-95"
+                                    onClick={() => window.open(imgMatch[2], '_blank')}
+                                    title="Clique para ampliar"
+                                />
+                                <div className="text-xs text-center text-gray-500 mt-1">{imgMatch[1]}</div>
+                            </div>
+                        )
+                    }
+                    return <span key={i}>{part}</span>
+                })}
+            </span>
+        )
+    }
+
+    return str
 }
 
 export function ChatMessage({ role, content }) {
@@ -52,8 +100,27 @@ export function ChatMessage({ role, content }) {
                 isAi ? "bg-white border-gray-100 rounded-tl-sm" : "bg-blue-600 text-white border-blue-600 rounded-tr-sm"
             )}>
                 {!structuredContent ? (
-                    // Mensagem de Texto Simples
-                    <p className="whitespace-pre-wrap text-sm leading-relaxed">{content}</p>
+                    // Mensagem de Texto Simples (com suporte básico a Markdown de imagem)
+                    <div className="text-sm leading-relaxed whitespace-pre-wrap">
+                        {content.split(/(!\[.*?\]\(.*?\))/g).map((part, i) => {
+                            const imgMatch = part.match(/!\[(.*?)\]\((.*?)\)/)
+                            if (imgMatch) {
+                                return (
+                                    <div key={i} className="my-2 p-1 border rounded bg-gray-50 bg-white">
+                                        <img
+                                            src={imgMatch[2]}
+                                            alt={imgMatch[1]}
+                                            className="max-w-full h-auto rounded cursor-pointer hover:opacity-95"
+                                            onClick={() => window.open(imgMatch[2], '_blank')}
+                                            title="Clique para ampliar"
+                                        />
+                                        <div className="text-xs text-center text-gray-500 mt-1">{imgMatch[1]}</div>
+                                    </div>
+                                )
+                            }
+                            return <span key={i}>{part}</span>
+                        })}
+                    </div>
                 ) : (
                     // Mensagem Estruturada (Diagnóstico IA)
                     <div className="space-y-4 min-w-[300px]">

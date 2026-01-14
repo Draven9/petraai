@@ -59,12 +59,65 @@ export const manualsService = {
     },
 
     delete: async (id) => {
-        // Cascade delete on embeddings is handled by DB FK
-        const { error } = await supabase
-            .from('technical_manuals')
-            .delete()
-            .eq('id', id)
-        if (error) throw error
+        try {
+            // 1. Get manual details to find file path
+            const { data: manual, error: fetchError } = await supabase
+                .from('technical_manuals')
+                .select('file_url, file_name') // file_name fallback
+                .eq('id', id)
+                .single()
+
+            if (fetchError) {
+                console.warn("Could not fetch manual for cleanup:", fetchError)
+                // Proceed to delete record anyway? Yes, to avoid stuck records.
+            } else {
+                // 2. Delete PDF from 'manuals' bucket
+                // Extract path from URL or use file_name if available
+                let filePath = manual.file_name
+                if (!filePath && manual.file_url) {
+                    const urlParts = manual.file_url.split('/')
+                    filePath = urlParts[urlParts.length - 1]
+                }
+
+                if (filePath) {
+                    const { error: storageError } = await supabase.storage
+                        .from('manuals')
+                        .remove([filePath])
+                    if (storageError) console.warn("Error deleting PDF file:", storageError)
+                }
+
+                // 3. Delete Page Images from 'manual-pages' bucket
+                // Images are stored in folder: {manualId}/
+                const { data: files, error: listError } = await supabase.storage
+                    .from('manual-pages')
+                    .list(`${id}`)
+
+                if (listError) {
+                    console.warn("Error listing manual pages:", listError)
+                } else if (files && files.length > 0) {
+                    const pathsToDelete = files.map(f => `${id}/${f.name}`)
+                    const { error: deletePagesError } = await supabase.storage
+                        .from('manual-pages')
+                        .remove(pathsToDelete)
+                    if (deletePagesError) console.warn("Error deleting manual pages:", deletePagesError)
+                }
+            }
+
+            // 4. Delete DB Record
+            const { error } = await supabase
+                .from('technical_manuals')
+                .delete()
+                .eq('id', id)
+            if (error) throw error
+
+            // Also should delete embeddings? 
+            // Postgres CASCADE deletion should handle 'manual_embeddings' and 'manual_pages_embeddings'
+            // if defined in schema. Assuming yes based on migration 014/005.
+
+        } catch (error) {
+            console.error("Delete manual error:", error)
+            throw error
+        }
     },
 
     upload: async (file) => {
@@ -83,6 +136,76 @@ export const manualsService = {
             .getPublicUrl(filePath)
 
         return { publicUrl, fileName: file.name }
+    },
+
+    // Process PDF Images: Page -> Image -> Vision AI -> Describe -> Embedding
+    processManualImages: async (manualId, file, onProgress) => {
+        try {
+            console.log(`Processing images for manual ${manualId}...`)
+            const arrayBuffer = await file.arrayBuffer()
+            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
+
+            // Limit pages for MVP to avoid huge costs/time? No, let's process all but warn user.
+            // Or maybe just first 20 pages? Let's do all.
+
+            for (let i = 1; i <= pdf.numPages; i++) {
+                if (onProgress) onProgress(`Processando página ${i}/${pdf.numPages}...`)
+
+                const page = await pdf.getPage(i)
+                const viewport = page.getViewport({ scale: 1.5 }) // Good quality for OCR/Vision
+
+                // Render to canvas
+                const canvas = document.createElement('canvas')
+                const context = canvas.getContext('2d')
+                canvas.height = viewport.height
+                canvas.width = viewport.width
+
+                await page.render({ canvasContext: context, viewport: viewport }).promise
+
+                // Convert to Blob/File
+                const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.8))
+
+                // Upload to Storage
+                const fileName = `${manualId}/page_${i}.jpg`
+                const { error: uploadError } = await supabase.storage
+                    .from('manual-pages')
+                    .upload(fileName, blob, { upsert: true })
+
+                if (uploadError) {
+                    console.error(`Error uploading page ${i}`, uploadError)
+                    continue
+                }
+
+                const { data: { publicUrl } } = supabase.storage
+                    .from('manual-pages')
+                    .getPublicUrl(fileName)
+
+                // Get Description from Vision AI
+                // We need base64 for Gemini/OpenAI mostly if not using URL. 
+                // But `aiService.describeImage` expects base64 data URL.
+                const base64DataUrl = canvas.toDataURL('image/jpeg', 0.8)
+
+                // Call Vision AI
+                const description = await aiService.describeImage(base64DataUrl)
+
+                // Generate Embedding for the description
+                const embedding = await aiService.generateEmbedding(description)
+
+                // Save to DB
+                await supabase.from('manual_pages_embeddings').insert({
+                    manual_id: manualId,
+                    page_number: i,
+                    image_path: publicUrl,
+                    image_description: description,
+                    embedding: embedding,
+                    metadata: { source: 'pdf_vision' }
+                })
+            }
+            return true
+        } catch (error) {
+            console.error("Error processing manual images:", error)
+            throw error
+        }
     },
 
     // Process PDF: Extract Text -> Chunk -> Bed -> Store

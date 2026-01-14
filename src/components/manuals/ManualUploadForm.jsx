@@ -3,6 +3,7 @@ import { useDropzone } from 'react-dropzone'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { useToast } from '@/context/ToastContext'
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Upload, FileText, X, Loader2, CheckCircle } from 'lucide-react'
@@ -15,6 +16,7 @@ function SimpleLabel({ children, className }) {
 }
 
 export function ManualUploadForm({ isOpen, onClose, onSuccess }) {
+    const { toast } = useToast()
     const [file, setFile] = useState(null)
     const [loading, setLoading] = useState(false)
     const [title, setTitle] = useState('')
@@ -58,7 +60,7 @@ export function ManualUploadForm({ isOpen, onClose, onSuccess }) {
             const { publicUrl, fileName } = await manualsService.upload(file)
 
             // 3. Create Record
-            await manualsService.create({
+            const newManual = await manualsService.create({
                 title,
                 machine_type: machineType,
                 brand,
@@ -68,6 +70,27 @@ export function ManualUploadForm({ isOpen, onClose, onSuccess }) {
                 content_extracted: extractedText,
                 uploaded_by_email: 'admin@petra.ai' // TODO: Pegar do context
             })
+
+            // 4. Auto-Process (Text + Vision)
+            if (newManual) {
+                const toastId = toast.loading("Processando manual...", "Indexando texto e imagens para IA...")
+
+                try {
+                    // Vision Processing (Parallel - fire and forget/toast update)
+                    manualsService.processManualImages(newManual.id, file, (msg) => {
+                        console.log("Vision Progress:", msg)
+                    }).catch(err => console.error("Vision Error:", err))
+
+                    // Text Processing
+                    await manualsService.processManual(newManual.id, file)
+
+                    toast.success("Upload e Processamento concluídos!", "O manual já pode ser consultado pela IA.")
+                    toast.dismiss(toastId)
+                } catch (procErr) {
+                    console.error("Auto-process error:", procErr)
+                    toast.error("Salvo, mas houve erro no processamento.", "Tente processar manualmente no card.")
+                }
+            }
 
             onSuccess()
             handleClose()

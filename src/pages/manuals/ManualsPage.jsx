@@ -123,14 +123,25 @@ export default function ManualsPage() {
             const blob = await response.blob()
             const file = new File([blob], manual.title, { type: blob.type })
 
+            const updateToast = (msg) => toast.loading("Processando...", msg, { id: toastId })
+
+            // 1. Text Processing (Standard RAG)
+            updateToast("Extraindo texto e gerando vetores...")
             await manualsService.processManual(manual.id, file)
 
+            // 2. Image Processing (Multimodal RAG)
+            updateToast("Analisando imagens e diagramas (Vision AI)...")
+            await manualsService.processManualImages(manual.id, file, (progressMsg) => {
+                updateToast(progressMsg)
+            })
+
             toast.dismiss(toastId)
-            toast.success("Manual Processado!", "O manual agora está indexado e pronto para o Chat IA.")
+            toast.success("Manual Processado!", "Texto e Imagens foram indexados com sucesso.")
 
             loadManuals(searchTerm) // Reload to update badge
         } catch (error) {
             console.error("Processing error:", error)
+            toast.dismiss() // Close loading toast
             toast.error("Erro no processamento", error.message)
         }
     }

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback } from 'react'
-import { X, CheckCircle, AlertCircle, Info } from 'lucide-react'
+import { X, CheckCircle, AlertCircle, Info, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const ToastContext = createContext(null)
@@ -13,6 +13,10 @@ export const useToast = () => {
 export function ToastProvider({ children }) {
     const [toasts, setToasts] = useState([])
 
+    const removeToast = useCallback((id) => {
+        setToasts(prev => prev.filter(t => t.id !== id))
+    }, [])
+
     const addToast = useCallback(({ title, description, type = 'info', duration = 3000 }) => {
         const id = Math.random().toString(36).substr(2, 9)
         setToasts(prev => [...prev, { id, title, description, type, duration }])
@@ -22,21 +26,20 @@ export function ToastProvider({ children }) {
                 removeToast(id)
             }, duration)
         }
-    }, [])
-
-    const removeToast = useCallback((id) => {
-        setToasts(prev => prev.filter(t => t.id !== id))
-    }, [])
+        return id
+    }, [removeToast])
 
     const toast = {
         success: (title, description) => addToast({ title, description, type: 'success' }),
         error: (title, description) => addToast({ title, description, type: 'error' }),
         info: (title, description) => addToast({ title, description, type: 'info' }),
-        warning: (title, description) => addToast({ title, description, type: 'warning' })
+        warning: (title, description) => addToast({ title, description, type: 'warning' }),
+        loading: (title, description) => addToast({ title, description, type: 'info', duration: 0 }),
+        dismiss: (id) => removeToast(id)
     }
 
     return (
-        <ToastContext.Provider value={toast}>
+        <ToastContext.Provider value={{ toast }}>
             {children}
             <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 w-full max-w-sm pointer-events-none">
                 {toasts.map(t => (
@@ -53,7 +56,7 @@ export function ToastProvider({ children }) {
                         {t.type === 'success' && <CheckCircle className="w-5 h-5 text-green-600 shrink-0" />}
                         {t.type === 'error' && <AlertCircle className="w-5 h-5 text-red-600 shrink-0" />}
                         {t.type === 'warning' && <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />}
-                        {t.type === 'info' && <Info className="w-5 h-5 text-blue-600 shrink-0" />}
+                        {t.type === 'info' && (t.duration === 0 ? <Loader2 className="w-5 h-5 text-blue-600 animate-spin shrink-0" /> : <Info className="w-5 h-5 text-blue-600 shrink-0" />)}
 
                         <div className="flex-1">
                             {t.title && <h4 className="font-semibold text-sm">{t.title}</h4>}

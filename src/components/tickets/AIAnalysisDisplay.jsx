@@ -5,21 +5,68 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 // Helper to safely render AI items (string or object)
 const renderAIItem = (item) => {
     if (!item) return ""
-    if (typeof item === 'string') return item
+
+    // 1. Handle Objects (create specific UI elements)
     if (typeof item === 'object') {
-        // Handle common structured keys the AI might use
         if (item.action && item.component_system) return <span><strong>[{item.component_system}]</strong> {item.action}</span>
         if (item.cause) {
             const prob = item.probability || item.probability_rank
-            if (prob) return <span>{item.cause} <em className="text-xs text-gray-400">({typeof prob === 'number' ? `${prob}º mais provável` : prob})</em></span>
-            return item.cause
+            // Recursively render cause text to support markdown images inside it
+            const causeContent = renderAIItem(item.cause)
+            if (prob) return <span>{causeContent} <em className="text-xs text-gray-400">({typeof prob === 'number' ? `${prob}º mais provável` : prob})</em></span>
+            return causeContent
         }
-        if (item.action) return item.action
-        if (item.description) return item.description
-        if (item.text) return item.text
+        if (item.solution) { // Support for solution objects
+            return renderAIItem(item.component_system ? `[${item.component_system}] ${item.solution}` : item.solution)
+        }
+        if (item.part) { // Support for part objects
+            let partText = item.component_system ? `[${item.component_system}] ${item.part}` : item.part
+            if (item.location_description) partText += ` (${item.location_description})`
+            if (item.specs) partText += ` - ${item.specs}`
+            return renderAIItem(partText)
+        }
+        if (item.action) return renderAIItem(item.action)
+        if (item.description) return renderAIItem(item.description)
+        if (item.text) return renderAIItem(item.text)
         return JSON.stringify(item)
     }
-    return String(item)
+
+    // 2. Handle Strings (Try parse JSON first, then Markdown)
+    let str = String(item)
+    if (str.trim().startsWith('{') && str.includes('}')) {
+        try {
+            const parsed = JSON.parse(str)
+            return renderAIItem(parsed) // Recurse with object
+        } catch (e) {
+            // ignore parse error, treat as string
+        }
+    }
+    if (str.includes('![')) {
+        return (
+            <span className="inline-block align-top w-full">
+                {str.split(/(!\[.*?\]\(.*?\))/g).map((part, i) => {
+                    const imgMatch = part.match(/!\[(.*?)\]\((.*?)\)/)
+                    if (imgMatch) {
+                        return (
+                            <div key={i} className="my-2 p-1 border rounded bg-gray-50 bg-white block w-full max-w-[200px]">
+                                <img
+                                    src={imgMatch[2]}
+                                    alt={imgMatch[1]}
+                                    className="max-w-full h-auto rounded cursor-pointer hover:opacity-95"
+                                    onClick={() => window.open(imgMatch[2], '_blank')}
+                                    title="Clique para ampliar"
+                                />
+                                <div className="text-xs text-center text-gray-500 mt-1">{imgMatch[1]}</div>
+                            </div>
+                        )
+                    }
+                    return <span key={i}>{part}</span>
+                })}
+            </span>
+        )
+    }
+
+    return str
 }
 
 export function AIAnalysisDisplay({ analysis }) {

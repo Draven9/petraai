@@ -159,17 +159,44 @@ export const aiService = {
             // Import supabase dynamically or helper if not available at top. 
             // Better: Add import { supabase } from '@/lib/supabase' at top of file
             // Assuming we added it.
-            const { data, error } = await supabase.rpc('match_manuals', {
+            const { data: textData, error: textError } = await supabase.rpc('match_manuals', {
                 query_embedding: embedding,
                 match_threshold: 0.5,
                 match_count: 5
             })
 
-            if (error) {
-                console.error("Match error:", error)
-                return []
+            const { data: imageData, error: imageError } = await supabase.rpc('match_manual_pages', {
+                query_embedding: embedding,
+                match_threshold: 0.4, // Lower threshold to surface more visual matches
+                match_count: 3
+            })
+
+            if (textError) console.error("Match text error:", textError)
+            if (imageError) console.error("Match image error:", imageError)
+
+            // Combine and format results
+            const results = []
+
+            if (textData) {
+                results.push(...textData.map(d => ({
+                    content: d.content,
+                    type: 'text',
+                    similarity: d.similarity
+                })))
             }
-            return data
+
+            if (imageData) {
+                results.push(...imageData.map(d => ({
+                    content: `[IMAGEM DA PÁGINA ${d.page_number}]: ${d.image_description}`,
+                    type: 'image',
+                    page_number: d.page_number,
+                    image_url: d.image_path,
+                    similarity: d.similarity
+                })))
+            }
+
+            // Sort by similarity descending
+            return results.sort((a, b) => b.similarity - a.similarity).slice(0, 8)
         } catch (error) {
             console.error("RAG Search error:", error)
             return []
@@ -189,8 +216,14 @@ export const aiService = {
         if (lastUserMsg && lastUserMsg.role === 'user') {
             const chunks = await aiService.searchManuals(lastUserMsg.content)
             if (chunks && chunks.length > 0) {
-                ragContext = `\n\nCONTEXTO DOS MANUAIS TÉCNICOS (Use estas informações para responder):\n` +
-                    chunks.map(c => `- ${c.content}`).join('\n')
+                ragContext = `\n\nCONTEXTO DOS MANUAIS (Informações Recuperadas):\n` +
+                    chunks.map(c => {
+                        if (c.type === 'image') return `- (Referência Visual: Página ${c.page_number}) ${c.content} | URL_REF: ${c.image_url}`
+                        return `- ${c.content}`
+                    }).join('\n')
+
+                // Instruct AI to use URL_REF if it cites the image
+                ragContext += "\n\nNOTA: Se você usar informações de uma Referência Visual, CITE explicitamente: '...conforme a figura da página X' e inclua a URL da imagem no final da resposta em formato markdown de imagem: ![Página X](URL_REF)."
             }
         }
 
@@ -374,6 +407,90 @@ ${ragContext}`
             }
         } catch (error) {
             console.error("Embedding Error:", error)
+            throw error
+        }
+    },
+    // Descreve uma imagem para RAG (Visão Computacional)
+    describeImage: async (imageBase64) => {
+        const config = await aiService.getConfig()
+        if (!config || !config.api_key) throw new Error("API Key faltante")
+
+        const isGoogle = config.provider?.toLowerCase().includes('google') ||
+            config.provider?.toLowerCase().includes('gemini')
+
+        const prompt = "Analise esta imagem técnica de um manual. Descreva detalhadamente todos os diagramas, esquemas, peças (com seus nomes/números), tabelas e textos visíveis. Seu objetivo é permitir que alguém encontre esta página buscando por texto."
+
+        try {
+            if (isGoogle) {
+                // Google Gemini Vision
+                // Model: gemini-1.5-flash (ideal for vision/cost) or gemini-pro-vision
+                const baseUrl = (config.base_url || 'https://generativelanguage.googleapis.com/v1beta').replace(/\/$/, '')
+                // Force use Gemini 1.5 Flash if generic model is set, or respect config if specific
+                const modelName = 'models/gemini-1.5-flash'
+                const url = `${baseUrl}/${modelName}:generateContent?key=${config.api_key}`
+
+                // Gemini expects base64 without header "data:image/jpeg;base64,"
+                const pureBase64 = imageBase64.split(',')[1] || imageBase64
+
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{
+                            parts: [
+                                { text: prompt },
+                                { inline_data: { mime_type: "image/jpeg", data: pureBase64 } }
+                            ]
+                        }]
+                    })
+                })
+
+                if (!response.ok) {
+                    const err = await response.json()
+                    throw new Error(err.error?.message || 'Google Vision Error')
+                }
+
+                const data = await response.json()
+                return data.candidates?.[0]?.content?.parts?.[0]?.text || "Sem descrição gerada."
+
+            } else {
+                // OpenAI Vision (GPT-4o / GPT-4-Turbo)
+                let baseUrl = (config.base_url || 'https://api.openai.com/v1').replace(/\/$/, '')
+
+                // Ensure model supports vision if not generic. Default to gpt-4o for safety if generic 'gpt-4' is saved.
+                const visionModel = config.model.includes('gpt-4') ? config.model : 'gpt-4o'
+
+                const response = await fetch(`${baseUrl}/chat/completions`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${config.api_key}`
+                    },
+                    body: JSON.stringify({
+                        model: visionModel,
+                        messages: [
+                            {
+                                role: "user",
+                                content: [
+                                    { type: "text", text: prompt },
+                                    { type: "image_url", image_url: { url: imageBase64 } } // Supports data:image...
+                                ]
+                            }
+                        ],
+                        max_tokens: 1000
+                    })
+                })
+
+                if (!response.ok) {
+                    const err = await response.json()
+                    throw new Error(err.error?.message || 'OpenAI Vision Error')
+                }
+
+                const data = await response.json()
+                return data.choices[0].message.content
+            }
+        } catch (error) {
+            console.error("Vision Error:", error)
             throw error
         }
     }
