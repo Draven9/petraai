@@ -131,12 +131,20 @@ export default function ManualsPage() {
 
             // 2. Image Processing (Multimodal RAG)
             updateToast("Analisando imagens e diagramas (Vision AI)...")
-            await manualsService.processManualImages(manual.id, file, (progressMsg) => {
+            const result = await manualsService.processManualImages(manual.id, file, (progressMsg) => {
                 updateToast(progressMsg)
             })
 
             toast.dismiss(toastId)
-            toast.success("Manual Processado!", "Texto e Imagens foram indexados com sucesso.")
+
+            if (result.failed > 0) {
+                toast.warning(
+                    "Processamento Concluído com Ressalvas",
+                    `Processamos ${result.processed} de ${result.total} páginas. ${result.failed} páginas foram puladas por erro.`
+                )
+            } else {
+                toast.success("Manual Processado!", "Texto e Imagens foram indexados com sucesso.")
+            }
 
             loadManuals(searchTerm) // Reload to update badge
         } catch (error) {

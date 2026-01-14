@@ -457,8 +457,8 @@ ${ragContext}`
                 // OpenAI Vision (GPT-4o / GPT-4-Turbo)
                 let baseUrl = (config.base_url || 'https://api.openai.com/v1').replace(/\/$/, '')
 
-                // Ensure model supports vision if not generic. Default to gpt-4o for safety if generic 'gpt-4' is saved.
-                const visionModel = config.model.includes('gpt-4') ? config.model : 'gpt-4o'
+                // Ensure model supports vision. We force gpt-4o as it is the most reliable/fastest for vision currently.
+                const visionModel = 'gpt-4o'
 
                 const response = await fetch(`${baseUrl}/chat/completions`, {
                     method: 'POST',

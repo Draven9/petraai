@@ -17,9 +17,16 @@ export function ToastProvider({ children }) {
         setToasts(prev => prev.filter(t => t.id !== id))
     }, [])
 
-    const addToast = useCallback(({ title, description, type = 'info', duration = 3000 }) => {
-        const id = Math.random().toString(36).substr(2, 9)
-        setToasts(prev => [...prev, { id, title, description, type, duration }])
+    const addToast = useCallback(({ id: providedId, title, description, type = 'info', duration = 3000 }) => {
+        const id = providedId || Math.random().toString(36).substr(2, 9)
+
+        setToasts(prev => {
+            const exists = prev.find(t => t.id === id)
+            if (exists) {
+                return prev.map(t => t.id === id ? { ...t, title, description, type, duration } : t)
+            }
+            return [...prev, { id, title, description, type, duration }]
+        })
 
         if (duration > 0) {
             setTimeout(() => {
@@ -30,11 +37,11 @@ export function ToastProvider({ children }) {
     }, [removeToast])
 
     const toast = {
-        success: (title, description) => addToast({ title, description, type: 'success' }),
-        error: (title, description) => addToast({ title, description, type: 'error' }),
-        info: (title, description) => addToast({ title, description, type: 'info' }),
-        warning: (title, description) => addToast({ title, description, type: 'warning' }),
-        loading: (title, description) => addToast({ title, description, type: 'info', duration: 0 }),
+        success: (title, description, options) => addToast({ title, description, type: 'success', ...options }),
+        error: (title, description, options) => addToast({ title, description, type: 'error', ...options }),
+        info: (title, description, options) => addToast({ title, description, type: 'info', ...options }),
+        warning: (title, description, options) => addToast({ title, description, type: 'warning', ...options }),
+        loading: (title, description, options) => addToast({ title, description, type: 'info', duration: 0, ...options }),
         dismiss: (id) => removeToast(id)
     }
 

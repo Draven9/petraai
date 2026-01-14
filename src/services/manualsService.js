@@ -3,7 +3,7 @@ import { aiService } from './aiService'
 import * as pdfjsLib from 'pdfjs-dist'
 
 // Configure worker for PDF.js (CDN for simplicity in dev)
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`
+pdfjsLib.GlobalWorkerOptions.workerSrc = `/pdf.worker.min.mjs`
 
 export const manualsService = {
     list: async ({ page = 1, pageSize = 20, search = '', type = 'all', brand = 'all' } = {}) => {
@@ -94,12 +94,17 @@ export const manualsService = {
 
                 if (listError) {
                     console.warn("Error listing manual pages:", listError)
-                } else if (files && files.length > 0) {
-                    const pathsToDelete = files.map(f => `${id}/${f.name}`)
-                    const { error: deletePagesError } = await supabase.storage
-                        .from('manual-pages')
-                        .remove(pathsToDelete)
-                    if (deletePagesError) console.warn("Error deleting manual pages:", deletePagesError)
+                } else {
+                    console.log(`Cleanup: Found ${files?.length || 0} images to delete for manual ${id}`)
+                    if (files && files.length > 0) {
+                        const pathsToDelete = files.map(f => `${id}/${f.name}`)
+                        const { error: deletePagesError } = await supabase.storage
+                            .from('manual-pages')
+                            .remove(pathsToDelete)
+
+                        if (deletePagesError) console.warn("Error deleting manual pages:", deletePagesError)
+                        else console.log("Cleanup: Images deleted successfully.")
+                    }
                 }
             }
 
@@ -145,65 +150,89 @@ export const manualsService = {
             const arrayBuffer = await file.arrayBuffer()
             const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
 
-            // Limit pages for MVP to avoid huge costs/time? No, let's process all but warn user.
-            // Or maybe just first 20 pages? Let's do all.
+            const totalPages = pdf.numPages
+            let successCount = 0
 
-            for (let i = 1; i <= pdf.numPages; i++) {
-                if (onProgress) onProgress(`Processando página ${i}/${pdf.numPages}...`)
+            for (let i = 1; i <= totalPages; i++) {
+                try {
+                    if (onProgress) onProgress(`Processando visualmente página ${i}/${totalPages}...`)
 
-                const page = await pdf.getPage(i)
-                const viewport = page.getViewport({ scale: 1.5 }) // Good quality for OCR/Vision
+                    // Artificial Delay to avoid Rate Limits (2s)
+                    await new Promise(r => setTimeout(r, 2000))
 
-                // Render to canvas
-                const canvas = document.createElement('canvas')
-                const context = canvas.getContext('2d')
-                canvas.height = viewport.height
-                canvas.width = viewport.width
+                    const page = await pdf.getPage(i)
+                    const viewport = page.getViewport({ scale: 1.5 }) // Good quality for OCR/Vision
 
-                await page.render({ canvasContext: context, viewport: viewport }).promise
+                    // Render to canvas
+                    const canvas = document.createElement('canvas')
+                    const context = canvas.getContext('2d')
+                    canvas.height = viewport.height
+                    canvas.width = viewport.width
 
-                // Convert to Blob/File
-                const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.8))
+                    await page.render({ canvasContext: context, viewport: viewport }).promise
 
-                // Upload to Storage
-                const fileName = `${manualId}/page_${i}.jpg`
-                const { error: uploadError } = await supabase.storage
-                    .from('manual-pages')
-                    .upload(fileName, blob, { upsert: true })
+                    // Convert to Blob/File
+                    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.8))
 
-                if (uploadError) {
-                    console.error(`Error uploading page ${i}`, uploadError)
-                    continue
+                    // Upload to Storage
+                    const fileName = `${manualId}/page_${i}.jpg`
+                    const { error: uploadError } = await supabase.storage
+                        .from('manual-pages')
+                        .upload(fileName, blob, { upsert: true })
+
+                    if (uploadError) {
+                        console.error(`Error uploading page ${i}:`, uploadError)
+                        continue // Skip AI if upload failed
+                    }
+
+                    const { data: { publicUrl } } = supabase.storage
+                        .from('manual-pages')
+                        .getPublicUrl(fileName)
+
+                    // Get Description from Vision AI
+                    const base64DataUrl = canvas.toDataURL('image/jpeg', 0.8)
+
+                    // Call Vision AI
+                    let description = ""
+                    try {
+                        description = await aiService.describeImage(base64DataUrl)
+                    } catch (visionErr) {
+                        console.warn(`Vision AI failed for page ${i}:`, visionErr)
+                        // Verify if we should abort or continue. 
+                        // Let's continue but maybe try to save partial data or just skip embedding?
+                        // If vision fails, embedding will fit bad data. Let's skip embedding.
+                        continue;
+                    }
+
+                    // Generate Embedding for the description
+                    const embedding = await aiService.generateEmbedding(description)
+
+                    // Save to DB
+                    const { error: dbError } = await supabase.from('manual_pages_embeddings').insert({
+                        manual_id: manualId,
+                        page_number: i,
+                        image_path: publicUrl,
+                        image_description: description,
+                        embedding: embedding,
+                        metadata: { source: 'pdf_vision' }
+                    })
+
+                    if (dbError) {
+                        console.error(`DB Insert Error page ${i}:`, dbError)
+                    } else {
+                        successCount++
+                    }
+
+                } catch (pageError) {
+                    console.error(`CRITICAL Error processing page ${i}:`, pageError)
+                    // Continue to next page despite error
                 }
-
-                const { data: { publicUrl } } = supabase.storage
-                    .from('manual-pages')
-                    .getPublicUrl(fileName)
-
-                // Get Description from Vision AI
-                // We need base64 for Gemini/OpenAI mostly if not using URL. 
-                // But `aiService.describeImage` expects base64 data URL.
-                const base64DataUrl = canvas.toDataURL('image/jpeg', 0.8)
-
-                // Call Vision AI
-                const description = await aiService.describeImage(base64DataUrl)
-
-                // Generate Embedding for the description
-                const embedding = await aiService.generateEmbedding(description)
-
-                // Save to DB
-                await supabase.from('manual_pages_embeddings').insert({
-                    manual_id: manualId,
-                    page_number: i,
-                    image_path: publicUrl,
-                    image_description: description,
-                    embedding: embedding,
-                    metadata: { source: 'pdf_vision' }
-                })
             }
-            return true
+
+            console.log(`Finished. Successfully processed ${successCount}/${totalPages} pages.`)
+            return { success: true, total: totalPages, processed: successCount, failed: totalPages - successCount }
         } catch (error) {
-            console.error("Error processing manual images:", error)
+            console.error("Fatal error in manual processing loop:", error)
             throw error
         }
     },
